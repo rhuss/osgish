@@ -1,0 +1,302 @@
+#!/usr/bin/perl
+
+use Term::Clui;
+use Term::ShellUI;
+use Term::ANSIColor qw(:constants);
+use Getopt::Long;
+use JMX::Jmx4Perl::Config;
+use strict;
+
+use Data::Dumper;
+
+use OSGi::Osgish;
+
+my %opts = ();
+my $result = GetOptions(\%opts,
+                        "server|s=s",
+                        "user|u=s","password|p=s",
+                        "proxy=s",
+                        "proxy-user=s","proxy-password=s",
+                        "target|t=s","target-user=s","target-password=s",
+                        "config=s",
+                        "version!",
+                        "help|h!" => sub { &Getopt::Long::HelpMessage() }
+                       );
+
+if ($opts{version}) {
+    print "jmx4perl ",$OSGi::Osgish::VERSION,"\n";
+    exit(0);
+}
+
+my $use_color = 0;
+my $config = &get_config($opts{config});
+my $jmx_config = new JMX::Jmx4Perl::Config($config);
+my $args = &get_args(\%opts);
+
+# Current connection to OSGi agent
+my $osgi;
+
+# Current server
+my $server;
+my @server_list = ();
+if ($opts{server}) {
+    my $config_s = $jmx_config->get_server_config($opts{server});
+    if ($config_s) {
+        push @server_list,{ name => $config_s->{name}, url => $config->{url} };
+        $server = $config_s->{name};
+    } else {
+        die "Invalid URL ",$opts{server} unless ($opts{server} =~ m|^\w+://|);
+        my $name = &prepare_server_name($opts{server});
+        push @server_list,{ name => $name, url => $opts{server} };
+        $server = $name;
+    }
+}
+
+# Know servers from config
+push @server_list, &get_server_list_from_config($jmx_config);
+my %server_map = map { $_->{name} => $_ } @server_list;
+
+# Context for subcommands
+my @contexts = ();
+my @context_colors = (RED,GREEN);
+
+my $osgi = &get_osgi($server);
+
+my $term = new Term::ShellUI(
+                             commands => &commands,
+                             history_file => "~/.osgish_history",
+                             prompt => \&prompt
+                            );
+$term->run;
+
+# ====================================================================
+# Commands used
+
+# Top-Level commands
+sub commands {
+    return 
+        { 
+         "bundles" => { 
+                       desc => "Bundles related operations",
+                       proc => sub { 
+                           &cmd_set_context("bundle",&bundle_commands,&commands) 
+                       },
+                       cmds => &bundle_commands                       
+                      },
+         &global_commands
+#         "help" =>   { 
+#                      desc => "Print helpful information",
+#                      args => sub { shift->help_args($helpcats, @_); },
+#                      method => sub { shift->help_call($helpcats, @_); } 
+#                     },
+        };
+}
+
+# Commands in context "bundle"
+sub bundle_commands {
+    return  { 
+             "ls" => { 
+                      desc => "List all bundles",
+                      proc => \&cmd_list_bundles,
+                     }            
+            };
+}
+
+# Commands always available
+sub global_commands {
+    return 
+      ( 
+       "connect" => { 
+                     desc => "Connect to a server by its URL or symbolic name",
+                     minargs => 1, maxargs => 1,
+                     args => sub { [ map { $_->{name} } @server_list  ] },
+                     proc => \&cmd_connect
+                    },
+       "servers" => { 
+                     desc => "Show all configured servers",
+                     proc => \&cmd_show_servers
+                    },
+       
+      );
+}
+
+# ==================
+
+# Update the context and available commands
+sub cmd_set_context {
+    # The new context
+    my $context = shift;
+    # Sub-commands within the context
+    my $sub_cmds = shift;
+    # Parent commands of this sub context
+    my $parent_cmds = shift;
+    
+    push @contexts,$context;
+    
+    # Set sub-commands
+    $term->commands
+      ({
+        %$sub_cmds,
+        &global_commands,
+        $parent_cmds ? 
+        (".." => {
+                 desc => "Go up one level",
+                 proc => 
+                  sub { 
+                      pop @contexts;
+                      $term->commands($parent_cmds);
+                  }
+                 },
+         "/" => { 
+                 desc => "Go to the top level",
+                 proc => 
+                 sub { 
+                     &reset_context();
+                 }
+                }) : ()
+       });    
+}
+
+# Connect to a server
+sub cmd_connect {
+    my $arg = shift;
+    my $s = $server_map{$arg};
+    unless ($s) {
+        unless ($arg =~ m|^\w+://|) {
+            print "Invalid URL $arg\n";
+            return;
+        }
+        my $name = &prepare_server_name($arg);
+        my $entry = { name => $name, url => $arg };
+        push @server_list,$entry;
+        $server_map{$name} = $entry;
+        $s = $entry;
+    }
+    $server = $s->{name};
+    $osgi = &get_osgi($server);
+    &reset_context;
+}
+
+# Show all servers
+sub cmd_show_servers {
+    for my $s (@server_list) {
+        my ($ms,$me) = &get_color(YELLOW,RESET);
+        printf " " . $ms . '%30.30s' . $me . ' - %s' . "\n",$s->{name},$s->{url};
+    }
+}
+
+# List bundles
+sub cmd_list_bundles {
+    unless ($osgi) {
+        print "Not connected to a server\n";
+        return;  
+    }
+    my $bundles = $osgi->list_bundles;
+    print Dumper($bundles);
+}
+
+# ==================
+
+sub reset_context {
+    $term->commands(&commands);
+    @contexts = ();
+}
+
+sub prompt {
+    my $term = shift;
+    my ($ms,$ms2,$me) = &get_color(CYAN,RED,RESET);
+    my $p = "";
+    if ($server) {
+        $p = "[" . $ms . $server . $me . "]" . " ";
+    } else { 
+        $p = "[" . $ms2 . "osgish" . $me . "]" . " ";
+    }
+    for my $c (0 .. $#contexts) {
+        $p .= (&get_color($context_colors[$c % scalar(@contexts)]))[0] . $contexts[$c] . $me;
+        $p .= " " if $c <= $#contexts;
+    }
+    $p .= ": ";
+    return $p;
+}
+
+sub get_osgi {
+    my $server = shift;
+    return undef unless $server;
+    my $sc = $server_map{$server};
+    return undef unless $sc;
+    if ($sc->{from_config}) {
+        return new OSGi::Osgish({ %$args, server => $server, config => $jmx_config});
+    } else {
+        return new OSGi::Osgish({ %$args, url => $sc->{url}});
+    }
+}
+
+sub get_server_list_from_config {
+    my $jmx_config = shift;
+    return map { { name => $_->{name}, url => $_->{url}, from_config => 1 } } @{$jmx_config->get_servers};
+}
+
+sub prepare_server_name {
+    my $url = shift;
+    return $1 if $url =~ m|^\w+://([^/]+)/?|;
+}
+
+sub get_config {
+    my $file = shift;
+    my $config = {};
+    if ($file && -e $file) {
+        $config = {
+                   new Config::General(-ConfigFile => $file,-LowerCaseNames => 1)->getall
+                  };        
+    } else {
+        $config = {};
+        # ~/.osgish overwrites ~/.j4p
+        for my $f (qw(.j4p .osgish)) {
+            my $file = $ENV{HOME} . "/" . $f;
+            if (-e $file) {
+                $config = { 
+                           %$config, 
+                           new Config::General(-ConfigFile => $file,-LowerCaseNames => 1)->getall
+                          };
+            }
+        }
+    }
+    return $config;
+}
+
+sub get_args {
+    my $o = shift;
+    my $ret = { };
+    
+    for my $arg qw(user password) {
+        if (defined($opts{$arg})) {
+            $ret->{$arg} = $opts{$arg};
+        }
+    }
+    
+    if (defined($opts{proxy})) {
+        my $proxy = {};
+        $proxy->{url} = $opts{proxy};
+        for my $k (qw(proxy-user proxy-password)) {
+            $proxy->{$k} = defined($opts{$k}) if $opts{$k};
+        }
+        $ret->{proxy} = $proxy;
+    }        
+    if (defined($opts{target})) {
+        $ret->{target} = {
+                          url => $opts{target},
+                          $opts{'target-user'} ? (user => $opts{'target-user'}) : (),
+                          $opts{'target-password'} ? (password => $opts{'target-password'}) : (),
+                         };
+    }
+    return $ret;
+}
+
+sub get_color { 
+    my @colors = @_;
+    if ($use_color) {
+        return @colors;
+    } else {
+        return map { "" } @colors;
+    }
+}

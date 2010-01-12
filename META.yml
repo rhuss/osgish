@@ -1,0 +1,35 @@
+---
+name: osgish
+version: 0.1_1
+author:
+  - Roland Huss (roland@cpan.org)
+abstract: A readline shell for OSGi
+license: gpl
+resources:
+  license: http://opensource.org/licenses/gpl-license.php
+build_requires:
+  File::Copy: 0
+  Module::Build: 0.35
+  Test: 0
+  Test::Deep: 0
+  Test::More: 0
+requires:
+  Carp: 0
+  Config::General: 0
+  Data::Dumper: 0
+  Getopt::Long: 0
+  JMX::Jmx4Perl: 0.50
+  Pod::Usage: 0
+  Term::ReadLine: 0
+recommends:
+  Term::ReadLine::Gnu: 0.27
+configure_requires:
+  Module::Build: 0.35
+provides:
+  OSGI::Osgish:
+    file: lib/OSGi/Osgish.pm
+    version: 0.1_1
+generated_by: Module::Build version 0.35
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4

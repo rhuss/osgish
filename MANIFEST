@@ -1,0 +1,7 @@
+agent/pom.xml
+agent/src/main/java/org/jmx4perl/osgish/OsgishActivator.java
+Build.PL
+lib/OSGi/Osgish.pm
+MANIFEST
+MANIFEST.SKIP
+META.yml
