@@ -6,6 +6,7 @@ use Term::ANSIColor qw(:constants);
 use Getopt::Long;
 use JMX::Jmx4Perl::Config;
 use strict;
+use English;
 
 use Data::Dumper;
 
@@ -28,10 +29,12 @@ if ($opts{version}) {
     exit(0);
 }
 
-my $use_color = 0;
+my $use_color = 1;
 my $config = &get_config($opts{config});
 my $jmx_config = new JMX::Jmx4Perl::Config($config);
 my $args = &get_args(\%opts);
+
+&init;
 
 # Current connection to OSGi agent
 my $osgi;
@@ -76,13 +79,14 @@ $term->run;
 sub commands {
     return 
         { 
-         "bundles" => { 
+         "bundle" => { 
                        desc => "Bundles related operations",
                        proc => sub { 
                            &cmd_set_context("bundle",&bundle_commands,&commands) 
                        },
                        cmds => &bundle_commands                       
                       },
+         "b" => { alias => "bundle", exclude_from_completion=>1},
          &global_commands
 #         "help" =>   { 
 #                      desc => "Print helpful information",
@@ -192,7 +196,36 @@ sub cmd_list_bundles {
         return;  
     }
     my $bundles = $osgi->list_bundles;
-    print Dumper($bundles);
+    my $text = "";
+    my $nr = 0;
+    for my $k (sort { $bundles->{$a}->{Identifier} <=> $bundles->{$b}->{Identifier} } keys %$bundles) {
+        my $b = $bundles->{$k};
+        my $id = $b->{Identifier};
+        my ($green,$red,$reset) = &get_color(GREEN,RED,RESET);
+        my $state = lc $b->{State};
+        my $color = "";
+        $color = $red if $state eq "installed";
+        $color = $green if $state eq "active";
+        my $state = uc(substr($state,0,1)) . substr($state,1);
+        my $level = $b->{StartLevel};
+
+        my $name = $b->{Headers}->{'[Bundle-Name]'}->{Value};
+        my $sym_name = $b->{SymbolicName};
+        my $version = $b->{Version};
+        my $location = $b->{Location};
+        my $desc = $name || $sym_name || $location;
+        $desc .= " ($version)" if $version && $version ne "0.0.0";
+        
+        $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
+        $nr++;
+    }
+    if ($nr < 21) {
+        print $text;
+    } else {
+        &print_paged($text);
+    }
+    #print $text;
+    #print Dumper($bundles);
 }
 
 # ==================
@@ -298,5 +331,21 @@ sub get_color {
         return @colors;
     } else {
         return map { "" } @colors;
+    }
+}
+
+sub print_paged {
+    my $text = shift;
+    view("",$text);
+}
+
+sub init {
+    # Force pager to show colors
+    if ($use_color) {
+        if ($ENV{LESS}) {
+            $ENV{LESS} .= " -f";
+        } else {
+            $ENV{LESS} = "-f";
+        }
     }
 }
