@@ -20,13 +20,14 @@ requires:
   Getopt::Long: 0
   JMX::Jmx4Perl: 0.50
   Pod::Usage: 0
+  Term::Clui: 0
   Term::ReadLine: 0
 recommends:
   Term::ReadLine::Gnu: 0.27
 configure_requires:
   Module::Build: 0.35
 provides:
-  OSGI::Osgish:
+  OSGi::Osgish:
     file: lib/OSGi/Osgish.pm
     version: 0.1_1
 generated_by: Module::Build version 0.35

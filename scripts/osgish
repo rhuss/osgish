@@ -41,52 +41,30 @@ my $osgi;
 
 # Current server
 my $server;
-my @server_list = ();
-if ($opts{server}) {
-    my $config_s = $jmx_config->get_server_config($opts{server});
-    if ($config_s) {
-        push @server_list,{ name => $config_s->{name}, url => $config->{url} };
-        $server = $config_s->{name};
-    } else {
-        die "Invalid URL ",$opts{server} unless ($opts{server} =~ m|^\w+://|);
-        my $name = &prepare_server_name($opts{server});
-        push @server_list,{ name => $name, url => $opts{server} };
-        $server = $name;
-    }
-}
-
-# Know servers from config
-push @server_list, &get_server_list_from_config($jmx_config);
-my %server_map = map { $_->{name} => $_ } @server_list;
+my ($server_list,$server_map) = &init_server_list(\%opts,$jmx_config);
 
 # Context for subcommands
 my @contexts = ();
-my @context_colors = (RED,GREEN);
 
 my $osgi = &get_osgi($server);
 
+my $top_commands = &top_commands;
 my $term = new Term::ShellUI(
-                             commands => &commands,
+                             commands => $top_commands,
                              history_file => "~/.osgish_history",
                              prompt => \&prompt
                             );
+#$term->{debug_complete}=5;
 $term->run;
 
 # ====================================================================
 # Commands used
 
 # Top-Level commands
-sub commands {
+sub top_commands {
     return 
         { 
-         "bundle" => { 
-                       desc => "Bundles related operations",
-                       proc => sub { 
-                           &cmd_set_context("bundle",&bundle_commands,&commands) 
-                       },
-                       cmds => &bundle_commands                       
-                      },
-         "b" => { alias => "bundle", exclude_from_completion=>1},
+         &bundle_commands,
          &global_commands
 #         "help" =>   { 
 #                      desc => "Print helpful information",
@@ -98,12 +76,33 @@ sub commands {
 
 # Commands in context "bundle"
 sub bundle_commands {
-    return  { 
-             "ls" => { 
-                      desc => "List all bundles",
-                      proc => \&cmd_list_bundles,
-                     }            
-            };
+    my $cmds = { 
+                "ls" => { 
+                         desc => "List all bundles",
+                         proc => \&cmd_list_bundles,
+                        },
+                "start" => { 
+                            desc => "Start a bundle",
+                            proc => \&cmd_start_bundle,
+                            args => sub { &complete_bundles(@_) }
+                           },
+                "stop" => { 
+                           desc => "Stop a bundle",
+                           proc => \&cmd_stop_bundle,
+                           args => sub { &complete_bundles(@_) }
+                          }
+               };
+    
+    return $server ? (
+                      "bundle" => { 
+                                   desc => "Bundles related operations",
+                                   proc => sub { 
+                                       &cmd_set_context("bundle",$cmds,$top_commands) 
+                                   },
+                                   cmds => $cmds                       
+                                  },
+                      "b" => { alias => "bundle", exclude_from_completion=>1},
+                     ) : ();
 }
 
 # Commands always available
@@ -112,15 +111,18 @@ sub global_commands {
       ( 
        "connect" => { 
                      desc => "Connect to a server by its URL or symbolic name",
-                     minargs => 1, maxargs => 1,
-                     args => sub { [ map { $_->{name} } @server_list  ] },
+                     minargs => 1, maxargs => 2,
+                     args => sub { [ map { $_->{name} } @$server_list  ] },
                      proc => \&cmd_connect
                     },
        "servers" => { 
                      desc => "Show all configured servers",
                      proc => \&cmd_show_servers
                     },
-       
+       $server ? ("shutdown" => {
+                                 desc => "Shutdown server",
+                                 proc => \&cmd_shutdown
+                                }) : ()
       );
 }
 
@@ -164,30 +166,52 @@ sub cmd_set_context {
 # Connect to a server
 sub cmd_connect {
     my $arg = shift;
-    my $s = $server_map{$arg};
+    my $name = shift;
+    my $s = $server_map->{$arg};
     unless ($s) {
         unless ($arg =~ m|^\w+://|) {
             print "Invalid URL $arg\n";
             return;
         }
-        my $name = &prepare_server_name($arg);
+        $name ||= &prepare_server_name($arg);
         my $entry = { name => $name, url => $arg };
-        push @server_list,$entry;
-        $server_map{$name} = $entry;
+        push @$server_list,$entry;
+        $server_map->{$name} = $entry;
         $s = $entry;
     }
     $server = $s->{name};
     $osgi = &get_osgi($server);
     &reset_context;
+    $term->commands(&top_commands);
 }
 
 # Show all servers
 sub cmd_show_servers {
-    for my $s (@server_list) {
+    for my $s (@$server_list) {
         my ($ms,$me) = &get_color(YELLOW,RESET);
-        printf " " . $ms . '%30.30s' . $me . ' - %s' . "\n",$s->{name},$s->{url};
+        my $sep = $s->{from_config} ? "-" : "*";
+        printf " " . $ms . '%30.30s' . $me . ' %s %s' . "\n",$s->{name},$sep,$s->{url};
     }
 }
+
+# Shutdown a server
+sub cmd_shutdown {
+    unless ($osgi) {
+        print "Not connected to a server\n";
+        return;
+    }
+    my ($yellow,$reset) = &get_color(YELLOW,RESET);
+    my $answer = &choose("Really shutdown " . $yellow . $server . $reset . " ?","yes","no");
+    if ($answer eq "yes") {
+        $osgi->shutdown;
+        $server = undef;
+        $osgi = undef;
+        &reset_context;
+    } else {
+        print "Shutdown of ". $yellow . $server . $reset . " cancelled\n";
+    }
+}
+
 
 # List bundles
 sub cmd_list_bundles {
@@ -195,7 +219,7 @@ sub cmd_list_bundles {
         print "Not connected to a server\n";
         return;  
     }
-    my $bundles = $osgi->list_bundles;
+    my $bundles = $osgi->bundles;
     my $text = "";
     my $nr = 0;
     for my $k (sort { $bundles->{$a}->{Identifier} <=> $bundles->{$b}->{Identifier} } keys %$bundles) {
@@ -219,43 +243,64 @@ sub cmd_list_bundles {
         $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
         $nr++;
     }
-    if ($nr < 21) {
-        print $text;
-    } else {
-        &print_paged($text);
-    }
+    &print_paged($text,$nr);
     #print $text;
     #print Dumper($bundles);
 }
 
+sub cmd_start_bundle {
+    my $bundle = shift;
+    $osgi->start_bundle($bundle);
+}
+
+sub cmd_stop_bundle {
+    my $bundle = shift;
+    $osgi->stop_bundle($bundle);    
+}
+
+
 # ==================
 
 sub reset_context {
-    $term->commands(&commands);
+    $term->commands($top_commands);
     @contexts = ();
+}
+
+sub complete_bundles {
+    my ($term,$cmpl) = @_;
+    return [] unless $osgi;
+
+    my $str = $cmpl->{str} || "";
+    my $len = length($str);
+    if ($str =~ /^\d+$/) { 
+        # Complete on ids
+        return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{$osgi->ids(use_cached => 1)} ];
+    } else {
+        my @sym_names = sort keys %{$osgi->symbolic_names(use_cached => 1)};
+        return \@sym_names unless $str;
+        return [ grep { substr($_,0,$len) eq $str } @sym_names ];
+    }
 }
 
 sub prompt {
     my $term = shift;
-    my ($ms,$ms2,$me) = &get_color(CYAN,RED,RESET);
-    my $p = "";
-    if ($server) {
-        $p = "[" . $ms . $server . $me . "]" . " ";
-    } else { 
-        $p = "[" . $ms2 . "osgish" . $me . "]" . " ";
+    my ($yellow,$cyan,$red,$reset) = &get_color(YELLOW,CYAN,RED,RESET);
+    my $p = "[";
+    $p .= $server ? $yellow . $server : $red . "osgish";
+    $p .= $reset;
+    $p .= ":" . $cyan if @contexts;
+    for my $i (0 .. $#contexts) {
+        $p .= $contexts[$i];
+        $p .= $i < $#contexts ? "/" : $reset;
     }
-    for my $c (0 .. $#contexts) {
-        $p .= (&get_color($context_colors[$c % scalar(@contexts)]))[0] . $contexts[$c] . $me;
-        $p .= " " if $c <= $#contexts;
-    }
-    $p .= ": ";
+    $p .= "] : ";
     return $p;
 }
 
 sub get_osgi {
     my $server = shift;
     return undef unless $server;
-    my $sc = $server_map{$server};
+    my $sc = $server_map->{$server};
     return undef unless $sc;
     if ($sc->{from_config}) {
         return new OSGi::Osgish({ %$args, server => $server, config => $jmx_config});
@@ -275,26 +320,17 @@ sub prepare_server_name {
 }
 
 sub get_config {
-    my $file = shift;
-    my $config = {};
+    my $file = shift || $ENV{HOME} . "/.osgish";
+    my $ret = {};
+
+    # Merge if servers from ~/.j4p
+    my $default =  {};
+    $default = { new Config::General(-ConfigFile => $ENV{HOME} . "/.j4p",-LowerCaseNames => 1)->getall } 
+      if -e $ENV{HOME} . "/.j4p";
     if ($file && -e $file) {
-        $config = {
-                   new Config::General(-ConfigFile => $file,-LowerCaseNames => 1)->getall
-                  };        
-    } else {
-        $config = {};
-        # ~/.osgish overwrites ~/.j4p
-        for my $f (qw(.j4p .osgish)) {
-            my $file = $ENV{HOME} . "/" . $f;
-            if (-e $file) {
-                $config = { 
-                           %$config, 
-                           new Config::General(-ConfigFile => $file,-LowerCaseNames => 1)->getall
-                          };
-            }
-        }
-    }
-    return $config;
+        $ret = { new Config::General(-ConfigFile => $file,-LowerCaseNames => 1,-DefaultConfig => $default)->getall };        
+    } 
+    return $ret;
 }
 
 sub get_args {
@@ -336,7 +372,12 @@ sub get_color {
 
 sub print_paged {
     my $text = shift;
-    view("",$text);
+    my $nr = shift;
+    if (defined($nr) && $nr < 21) {
+        print $text;
+    } else {
+        view("",$text);
+    }
 }
 
 sub init {
@@ -349,3 +390,35 @@ sub init {
         }
     }
 }
+
+sub init_server_list {
+    my ($o,$jc) = @_;
+    my @servers = &get_server_list_from_config($jc);
+    if ($o->{server}) {
+        my $config_s = $jc->get_server_config($o->{server});
+        if ($config_s) {
+            my $found = 0;
+            my $i=0;
+            my $entry = { name => $config_s->{name}, url => $config_s->{url}, from_config => 1 } ;
+            for my $s (@servers) {
+                if ($s->{name} eq $o->{server}) {
+                    $servers[$i] = $entry;
+                    $found = 1;                 
+                    last;
+                }
+                $i++;
+            } 
+            push @servers,$entry unless $found;
+            $server = $config_s->{name};
+        } else {
+            die "Invalid URL ",$o->{server} unless ($o->{server} =~ m|^\w+://|);
+            my $name = &prepare_server_name($opts{server});
+            push @servers,{ name => $name, url => $o->{server} };
+            $server = $name;
+        }
+    }
+
+    return (\@servers,
+              { map { $_->{name} => $_ } @servers });
+}
+

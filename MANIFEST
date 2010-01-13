@@ -5,3 +5,4 @@ lib/OSGi/Osgish.pm
 MANIFEST
 MANIFEST.SKIP
 META.yml
+scripts/osgish
