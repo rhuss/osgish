@@ -52,7 +52,7 @@
   </dependencies>
 
   <properties>
-    <j4p.version>0.55.0.M1</j4p.version>
+    <j4p.version>0.55.0.M2</j4p.version>
   </properties>
 
   <build>
