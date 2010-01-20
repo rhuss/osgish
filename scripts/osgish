@@ -56,7 +56,8 @@ my $term = new Term::ShellUI(
                              prompt => \&prompt
                             );
 #$term->{debug_complete}=5;
-# If we only have a simple shell, we have to trim done things
+
+# Special readline customization:
 if ($term->{term}->ReadLine eq "Term::ReadLine::Perl") {
     $term->{term}->ornaments(0);
     $no_color_prompt = 1;
