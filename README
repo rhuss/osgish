@@ -1,0 +1,148 @@
+                                osgish
+                                ======
+
+INTRODUCTION
+
+  PLEASE NOTE THAT VERSION 0.1 IS A PREVIEW ONLY.
+
+  Osgish is command line shell for OSGi. It is based on the Readline
+  Library, Jmx4Perl as OSGi Backend and Aries JMX as OSGi Management
+  layer, with Perl being the glue.
+
+  Highlights of osgish are:
+
+  * Readline and History support based on GNU Readline/History as
+    known from other shells like 'bash'.
+  * Context sensitive argument completion, e.g. on bundle symbolic
+    names. 
+  * Colored output (can be switched off)
+  * Multi-Server support
+  * Remote operation
+
+  THIS IS A PREVIEW. Currently you can list, start and stop bundles
+  only. A lot of additional functionality is planned making osgish a
+  full featured OSGi shell. If you have a use case you want to have
+  covered, please don't hesistate to contact
+  roland@cpan.org. Everything is in the flow yet.
+
+HOW IT WORKS
+
+  Osgish consist of mainly two parts: A Perl command line script
+  (along with some Perl modules) which connects to an OSGi container
+  via a special OSGi agent bundle (osgish-agent.jar). This bundle
+  contains the jmx4perl for exports JMX information through an OSGi
+  HttpService as JSON data. The JMX MBeans used are those provided by
+  the Aries (http://incubator.apache.org/aries/) which becomes an
+  implementation of the (yet to be finished) specification of the OSGi
+  Alliance Enterprise Expert Group (EEG), especially the "JMX
+  Management Model Specification".  
+
+  Although this setup sounds a bit involved, installation is not much
+  more than installing a CPAN package and a provided OSGi bundle (the
+  same as for jmx4perl). 
+
+INSTALLATION
+
+  The Perl part installs as any other module via Module::Build, which
+  you need to have installed. Using
+
+  perl Build.PL
+  ./Build
+  ./Build test
+  ./Build install
+
+  will install the modules. If you have Java and Maven (a Java build
+  tool) installed, the agent bundle will be compiled and packaged as
+  well when you use './Build dist'. However, this is not required as a
+  prepackaged bundle is contained within the agent directory.
+
+  Osgish depends on the Perl Module 'Term::ReadLine' (indirectly via
+  Term::ShellUI), which can be used with various backend Readline
+  implementations. The most powerful (and hence recommended)
+  implementation is GNU Readline/History Library which will be used if
+  installed. It is really worth to go the extra way to install GNU
+  readline, even on OS X or Windows (which is not trivial). E.g. for
+  OS X you can use the package 'p5-term-readline-gnu' to install
+  readline along with the needed module. 
+
+  For the module to work, you need to provision
+  "osgi-agent-<version>.jar" to each OSGi container you want to
+  connect to. Refer to you OSGi framework in use how to install a
+  bundle (e.g. by calling 'install' in a OSGi shell or providing the
+  bundle name during startup). This bundle has a dependency on an OSGi
+  HttpService, which need to be available. Some OSGi container (like
+  Glassfish v3) already come with a HttpService installed, for other
+  you need to install one manually. A good choice is the Pax Web
+  (http://wiki.ops4j.org/display/paxweb/Pax+Web) HttpService. Select
+  the pax-web-jetty-bundle when downloading, it contains a all you
+  need.
+
+  Considered you installed the HttpService at its default port 8080, 
+  you can connect to it via
+
+  osgish --server http://localhost:8080/j4p
+
+  (This assumes, that the HttpService has a root context '/' which is
+  true for Pax Web. Glassfish v3's HttpService use a root context of
+  '/osgi' which results in a connect URL of
+  http://localhost:8080/osgi/j4p)
+
+SUPPORTED OSGI PLAFORMS
+  
+  The following OSGi platform has been confirmed to work so far
+  with: 
+
+  * Felix 2.0.1
+  * Equinox 3.5.1
+  * Glassfish v3 (with Felix included)
+  * Spring dm Server 2.0
+
+  Since OSGi bundles are highly portable, it is expected that every
+  OSGi server with an installed HttpService should work out of the
+  box.  Please open a bug at
+  http://rt.cpan.org/Public/Bug/Report.html?Queue=osgish if you
+  encounter any problems.
+
+RESOURCES
+
+  * Osgish's source is hosted on github.com. You can clone the
+    repository with git://github.com/rhuss/osgish.git as URL
+
+  * Osgish is hosted on CPAN at http://search.cpan.org/~roland/osgish
+
+LICENSE
+  
+  Copyright (C) 2009 Roland Huss (roland@cpan.org)
+
+  Osgish is free software: you can redistribute it and/or modify it
+  under the terms of the GNU General Public License as published by
+  the Free Software Foundation, either version 2 of the License, or
+  (at your option) any later version.
+
+  Osgish is distributed in the hope that it will be useful, but
+  WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+  General Public License for more details.
+
+  You should have received a copy of the GNU General Public License
+  along with osgish.  If not, see <http://www.gnu.org/licenses/>.
+
+  A commercial license is available as well. You can either apply the
+  GPL or obtain a commercial license for closed source
+  development. Please contact roland@cpan.org for further information.
+
+PROFESSIONAL SERVICES
+
+  Just in case you need professional support for this module (or OSGi,
+  JMX or JEE in general), contact roland.huss@consol.de for further
+  information (or use the contact form at
+  http://www.consol.com/contact/ )
+
+BUGS 
+
+  Please report any bugs and/or feature requests at 
+  http://rt.cpan.org/Public/Bug/Report.html?Queue=osgish
+
+AUTHOR
+
+  roland@cpan.org

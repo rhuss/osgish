@@ -18,11 +18,13 @@ requires:
   Config::General: 0
   Data::Dumper: 0
   Getopt::Long: 0
-  JMX::Jmx4Perl: 0.50
+  JMX::Jmx4Perl: 0.55_1
   Pod::Usage: 0
   Term::Clui: 0
   Term::ReadLine: 0
+  Term::ReadLine::Perl: 0
 recommends:
+  Term::ANSIColor: 2.02
   Term::ReadLine::Gnu: 0.27
 configure_requires:
   Module::Build: 0.35

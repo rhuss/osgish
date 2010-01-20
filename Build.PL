@@ -161,17 +161,19 @@ my $build = $class->new
    license => 'gpl',
 
    requires => {
-                "JMX::Jmx4Perl" => "0.50",
+                "JMX::Jmx4Perl" => "0.55_2",
                 "Data::Dumper" => 0,
                 "Pod::Usage" => 0,
                 "Getopt::Long" => 0,
                 "Carp" => 0,
                 "Config::General" => 0,
                 "Term::ReadLine" => 0,
+                "Term::ReadLine::Perl" => 0,
                 "Term::Clui" => 0
                },
    recommends => {
-                   "Term::ReadLine::Gnu" => "0.27"
+                   "Term::ReadLine::Gnu" => "0.27",
+                   "Term::ANSIColor" => "2.02"
                   },
    build_requires => {
                       "Module::Build" => "0.35",

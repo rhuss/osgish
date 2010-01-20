@@ -30,6 +30,7 @@ if ($opts{version}) {
 }
 
 my $use_color = 1;
+my $no_color_prompt = 0;        # Don't color for certain readline imp.
 my $config = &get_config($opts{config});
 my $jmx_config = new JMX::Jmx4Perl::Config($config);
 my $args = &get_args(\%opts);
@@ -55,6 +56,11 @@ my $term = new Term::ShellUI(
                              prompt => \&prompt
                             );
 #$term->{debug_complete}=5;
+# If we only have a simple shell, we have to trim done things
+if ($term->{term}->ReadLine eq "Term::ReadLine::Perl") {
+    $term->{term}->ornaments(0);
+    $no_color_prompt = 1;
+}
 $term->run;
 
 # ====================================================================
@@ -112,7 +118,7 @@ sub global_commands {
        "connect" => { 
                      desc => "Connect to a server by its URL or symbolic name",
                      minargs => 1, maxargs => 2,
-                     args => sub { [ map { $_->{name} } @$server_list  ] },
+                     args => sub { &complete_servers(@_) },
                      proc => \&cmd_connect
                     },
        "servers" => { 
@@ -169,7 +175,7 @@ sub cmd_connect {
     my $name = shift;
     my $s = $server_map->{$arg};
     unless ($s) {
-        unless ($arg =~ m|^\w+://|) {
+        unless ($arg =~ m|^\w+://[\w:]+/|) {
             print "Invalid URL $arg\n";
             return;
         }
@@ -179,10 +185,21 @@ sub cmd_connect {
         $server_map->{$name} = $entry;
         $s = $entry;
     }
-    $server = $s->{name};
-    $osgi = &get_osgi($server);
+    my ($old_server,$old_osgi) = ($server,$osgi);
+    eval { 
+        $server = $s->{name};
+        $osgi = &get_osgi($server) || die "Unknown $server (not an alias nor a proper URL).\n";;
+        $osgi->init();
+    };
+    if ($@) {
+        $server = $old_server;
+        $osgi = $old_osgi;
+        die $@;
+    } 
     &reset_context;
     $term->commands(&top_commands);
+    my ($yellow,$reset) = &get_color(YELLOW,RESET);
+    print "Connected to " . $yellow . $server . $reset .  " (" . $osgi->url . ")\n";
 }
 
 # Show all servers
@@ -266,10 +283,17 @@ sub reset_context {
     @contexts = ();
 }
 
+sub complete_servers {
+    my ($term,$cmpl) = @_;
+    return [] unless @$server_list;
+    my $str = $cmpl->{str} || "";
+    my $len = length($str);
+    return [ grep { substr($_,0,$len) eq $str }  map { $_->{name} } @$server_list  ];
+}
+
 sub complete_bundles {
     my ($term,$cmpl) = @_;
     return [] unless $osgi;
-
     my $str = $cmpl->{str} || "";
     my $len = length($str);
     if ($str =~ /^\d+$/) { 
@@ -284,7 +308,7 @@ sub complete_bundles {
 
 sub prompt {
     my $term = shift;
-    my ($yellow,$cyan,$red,$reset) = &get_color(YELLOW,CYAN,RED,RESET);
+    my ($yellow,$cyan,$red,$reset) = $no_color_prompt ? ("","","","") : &get_color(YELLOW,CYAN,RED,RESET,{escape => 1});
     my $p = "[";
     $p .= $server ? $yellow . $server : $red . "osgish";
     $p .= $reset;
@@ -363,8 +387,13 @@ sub get_args {
 
 sub get_color { 
     my @colors = @_;
+    my $args = ref($colors[$#colors]) eq "HASH" ? pop @colors : {};
     if ($use_color) {
-        return @colors;
+        if ($args->{escape}) {
+            return map { "\01" . $_ . "\02" } @colors;
+        } else {
+            return @colors;
+        }
     } else {
         return map { "" } @colors;
     }

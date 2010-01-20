@@ -1,8 +1,12 @@
 agent/pom.xml
 agent/src/main/java/org/jmx4perl/osgish/OsgishActivator.java
 Build.PL
+CHANGES
 lib/OSGi/Osgish.pm
+LICENSE
 MANIFEST
 MANIFEST.SKIP
 META.yml
+README
 scripts/osgish
+TODO
