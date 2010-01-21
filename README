@@ -11,13 +11,14 @@ INTRODUCTION
 
   Highlights of osgish are:
 
-  * Readline and History support based on GNU Readline/History as
-    known from other shells like 'bash'.
+  * Readline and history support based on GNU Readline/History as
+    known from other shells like 'bash'. When GNU Readline is not
+    available, a pure Perl Module is used instead.
   * Context sensitive argument completion, e.g. on bundle symbolic
     names. 
   * Colored output (can be switched off)
   * Multi-Server support
-  * Remote operation
+  * Remote operation via HTTP(S)
 
   THIS IS A PREVIEW. Currently you can list, start and stop bundles
   only. A lot of additional functionality is planned making osgish a

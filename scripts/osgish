@@ -25,7 +25,7 @@ my $result = GetOptions(\%opts,
                        );
 
 if ($opts{version}) {
-    print "jmx4perl ",$OSGi::Osgish::VERSION,"\n";
+    print "osgish ",$OSGi::Osgish::VERSION,"\n";
     exit(0);
 }
 
@@ -72,6 +72,7 @@ sub top_commands {
     return 
         { 
          &bundle_commands,
+         &service_commands,
          &global_commands
 #         "help" =>   { 
 #                      desc => "Print helpful information",
@@ -104,11 +105,33 @@ sub bundle_commands {
                       "bundle" => { 
                                    desc => "Bundles related operations",
                                    proc => sub { 
-                                       &cmd_set_context("bundle",$cmds,$top_commands) 
+                                       &cmd_set_context("bundle",$cmds,&top_commands) 
                                    },
                                    cmds => $cmds                       
                                   },
                       "b" => { alias => "bundle", exclude_from_completion=>1},
+                     ) : ();
+}
+
+# Commands im context "service"
+sub service_commands {
+    my $cmds = { 
+                "ls" => { 
+                         desc => "List all service",
+                         proc => \&cmd_list_services,
+                        },
+               };
+    
+    return $server ? (
+                      "service" => { 
+                                   desc => "Service related operations",
+                                   proc => sub { 
+                                       &cmd_set_context("service",$cmds,&top_commands) 
+                                   },
+                                   cmds => $cmds                       
+                                  },
+                      "s" => { alias => "service", exclude_from_completion=>1},
+                      "serv" => { alias => "service", exclude_from_completion=>1},
                      ) : ();
 }
 
@@ -126,6 +149,10 @@ sub global_commands {
                      desc => "Show all configured servers",
                      proc => \&cmd_show_servers
                     },
+       "error" => {
+                   desc => "Show last error (if any)",
+                   proc => \&cmd_last_error
+                  },
        $server ? ("shutdown" => {
                                  desc => "Shutdown server",
                                  proc => \&cmd_shutdown
@@ -230,15 +257,18 @@ sub cmd_shutdown {
     }
 }
 
+# =================================================================================================== 
 
 # List bundles
 sub cmd_list_bundles {
+
     unless ($osgi) {
         print "Not connected to a server\n";
         return;  
     }
     my $bundles = $osgi->bundles;
-    my $text = "";
+    my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
+    $text .= "-" x 87 . "\n";
     my $nr = 0;
     for my $k (sort { $bundles->{$a}->{Identifier} <=> $bundles->{$b}->{Identifier} } keys %$bundles) {
         my $b = $bundles->{$k};
@@ -276,11 +306,49 @@ sub cmd_stop_bundle {
     $osgi->stop_bundle($bundle);    
 }
 
+# =========================================================================================
+
+sub cmd_list_services { 
+    unless ($osgi) {
+        print "Not connected to a server\n";
+        return;  
+    }
+    my $services = $osgi->services;
+    my $text = sprintf("%4.4s   %-60.60s %5.5s | %s\n","Id","Class","Bd-Id","Using bundles");
+    $text .= "-" x 74 . "+" . "-" x 24 . "\n";
+    my $nr = 0;
+    for my $k (sort { $services->{$a}->{Identifier} <=> $services->{$b}->{Identifier} } keys %$services) {
+        my $s = $services->{$k};
+        my $id = $s->{Identifier};
+        my ($green,$red,$reset) = &get_color(GREEN,RED,RESET);
+        my $using_bundles = $s->{UsingBundles} || [];
+        my $using = $using_bundles ? join (", ",sort { $a <=> $b } @$using_bundles) : "";
+        my $bundle_id = $s->{BundleIdentifier};
+        my $classes = $s->{objectClass};        
+        $text .= sprintf "%4d   %-60.60s  %4d | %s\n",$id,$classes->[0],$bundle_id,$using;
+        for my $i (1 .. $#$classes) {
+            $text .= sprintf "       %-66.66s |\n",$classes->[$i];
+        }
+        $nr++;
+    }
+    &print_paged($text,$nr);
+}
+
+# =========================================================================================
+sub cmd_last_error {
+    if ($osgi && $osgi->last_error) { 
+        my $txt = $osgi->last_error;
+        chop $txt;
+        print "$txt\n";
+    } else {
+        print "No errors";
+    }
+}
 
 # ==================
 
 sub reset_context {
-    $term->commands($top_commands);
+    $term->commands(&top_commands);
     @contexts = ();
 }
 
@@ -403,7 +471,7 @@ sub get_color {
 sub print_paged {
     my $text = shift;
     my $nr = shift;
-    if (defined($nr) && $nr < 21) {
+    if (defined($nr) && $nr < 24) {
         print $text;
     } else {
         view("",$text);

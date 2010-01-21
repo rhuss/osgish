@@ -49,6 +49,12 @@
       <scope>provided</scope>
     </dependency>
 
+    <dependency>
+      <groupId>org.ops4j.pax.web</groupId>
+      <artifactId>pax-web-jetty-bundle</artifactId>
+      <version>0.7.0</version>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
 
   <properties>

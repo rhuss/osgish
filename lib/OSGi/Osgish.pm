@@ -18,7 +18,7 @@ use JMX::Jmx4Perl;
 use JMX::Jmx4Perl::Request;
 use Data::Dumper;
 
-$VERSION = "0.1_1";
+$VERSION = "0.1.0_1";
 
 my $MBEANS_MAP = 
     { 
@@ -31,6 +31,8 @@ my $MBEANS_MAP =
      "provisioning" => { key => "service", version => "1.2", domain => "osgi.compendium" },
      "useradmin" => { key => "service", version => "1.1", domain => "osgi.compendium" }
     };
+
+my $OSGISH_SERVICE_NAME = "osgish:type=Service";
 
 sub new { 
     my $class = shift;
@@ -53,11 +55,14 @@ sub url {
 sub init {
     my $self = shift;
     my $old_bundle = delete $self->{bundle};
+    my $old_service = delete $self->{service};
     eval {
-        $self->_update_bundles;
+        $self->{bundle} = $self->_fetch_list("bundleState","listBundles");
+        $self->{service} = $self->_fetch_list("serviceState","listServices");
     };
     if ($@) {
         $self->{bundle} = $old_bundle;
+        $self->{service} = $old_service;
         die $@;
     }
 }
@@ -66,6 +71,12 @@ sub bundles {
     my $self = shift;
     $self->_update_bundles(@_);
     return $self->{bundle}->{list};
+}
+
+sub services { 
+    my $self = shift;
+    $self->_update_services(@_);
+    return $self->{service}->{list};
 }
 
 sub symbolic_names { 
@@ -108,9 +119,19 @@ sub _execute {
         #print Dumper($response);
         die "No osgish-agent running [Not found: $mbean,$operation].\n"
           if $response->status == 404;
-        die "Connection refused\n" if $response->status == 500;
+        if ($response->status >= 500) {
+            $self->{last_error} = $response->{error} . 
+              ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
+            die "Connection refused\n" if $response->{error} =~ /Connection\s+refused/i;
+            die "Internal Server Error: " . $response->{error} . "\n";
+        }
     }
     return $response->value;
+}
+
+sub last_error {
+    my $self = shift;
+    return $self->{last_error};
 }
 
 sub _start_stop_bundle {
@@ -133,24 +154,54 @@ sub _mbean_name {
     return $d->{domain} . ":" . $d->{key} . "=$short_name,version=" . $d->{version};
 }
 
+sub _update_services {
+    my $self = shift;
+    my $args = shift;
+    $args = { $args, @_ } unless ref($args) eq "HASH";
+
+    return if ($self->{service} && $args->{use_cached});
+
+    # TODO: Update policy
+
+    # Cache bundle list
+    if ($self->_server_state_changed("services")) {
+        my $service = $self->_fetch_list("serviceState","listServices");
+        $self->{service} = $service;
+    }    
+}
+
 sub _update_bundles {
     my $self = shift;
     my $args = shift;
     $args = { $args, @_ } unless ref($args) eq "HASH";
 
-    my $j4p = $self->{j4p};
-    
     return if ($self->{bundle} && $args->{use_cached});
 
     # TODO: Update policy
 
     # Cache bundle list
-    my $bundle = {};
-    $bundle->{list} = $self->_execute($self->_mbean_name("bundleState"),"listBundles");
-    $bundle->{timestamp} = time;
-    $bundle->{symbolic_names} = $self->_extract_symbolic_names($bundle->{list});
-    $bundle->{ids} = [ map { $_->{Identifier} } values %{$bundle->{list}} ];
-    $self->{bundle} = $bundle;
+    if ($self->_server_state_changed("bundles")) {
+        my $bundle = $self->_fetch_list("bundleState","listBundles");
+        $bundle->{symbolic_names} = $self->_extract_symbolic_names($bundle->{list});
+        $self->{bundle} = $bundle;
+    }
+}
+
+sub _fetch_list {
+    my $self = shift;
+    my ($mbean,$operation) = @_;
+    my $ret = {};
+    $ret->{list} = $self->_execute($self->_mbean_name($mbean),$operation);
+    $ret->{timestamp} = time;
+    $ret->{ids} = [ map { $_->{Identifier} } values %{$ret->{list}} ];
+    return $ret;
+}
+
+sub _server_state_changed {
+    my $self = shift;
+    my $type = shift;
+    my $state = $self->_execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$self->{bundle}->{timestamp});
+    return $state eq "true" ? 1 : 0;
 }
 
 sub _extract_symbolic_names {
