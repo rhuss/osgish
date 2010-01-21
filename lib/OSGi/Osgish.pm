@@ -57,8 +57,8 @@ sub init {
     my $old_bundle = delete $self->{bundle};
     my $old_service = delete $self->{service};
     eval {
-        $self->{bundle} = $self->_fetch_list("bundleState","listBundles");
-        $self->{service} = $self->_fetch_list("serviceState","listServices");
+        $self->_fetch_bundles;
+        $self->_fetch_services;
     };
     if ($@) {
         $self->{bundle} = $old_bundle;
@@ -137,8 +137,8 @@ sub last_error {
 sub _start_stop_bundle {
     my $self = shift;
     my $cmd = shift;
-    my $what = shift;
-
+    my $what = shift || die "No id or name given\n";
+    
     my $id = $what =~ /^\d+$/ ? $what : $self->symbolic_names->{$what};
     unless ($id) {
         die "Cannot $cmd bundle '$what': Not an id nor a symbolic name\n";
@@ -158,33 +158,41 @@ sub _update_services {
     my $self = shift;
     my $args = shift;
     $args = { $args, @_ } unless ref($args) eq "HASH";
-
     return if ($self->{service} && $args->{use_cached});
 
     # TODO: Update policy
 
     # Cache bundle list
     if ($self->_server_state_changed("services")) {
-        my $service = $self->_fetch_list("serviceState","listServices");
-        $self->{service} = $service;
+        $self->_fetch_services;
     }    
 }
 
 sub _update_bundles {
     my $self = shift;
     my $args = shift;
+    
     $args = { $args, @_ } unless ref($args) eq "HASH";
-
+    
     return if ($self->{bundle} && $args->{use_cached});
-
     # TODO: Update policy
 
     # Cache bundle list
     if ($self->_server_state_changed("bundles")) {
-        my $bundle = $self->_fetch_list("bundleState","listBundles");
-        $bundle->{symbolic_names} = $self->_extract_symbolic_names($bundle->{list});
-        $self->{bundle} = $bundle;
+        $self->_fetch_bundles;
     }
+}
+
+sub _fetch_bundles {
+    my $self = shift;
+    my $bundle = $self->_fetch_list("bundleState","listBundles");
+    $bundle->{symbolic_names} = $self->_extract_symbolic_names($bundle->{list});
+    $self->{bundle} = $bundle;    
+}
+
+sub _fetch_services {
+    my $self = shift;
+    $self->{service} = $self->_fetch_list("serviceState","listServices");
 }
 
 sub _fetch_list {

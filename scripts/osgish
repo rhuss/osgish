@@ -370,8 +370,11 @@ sub complete_bundles {
         return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{$osgi->ids(use_cached => 1)} ];
     } else {
         my @sym_names = sort keys %{$osgi->symbolic_names(use_cached => 1)};
-        return \@sym_names unless $str;
-        return [ grep { substr($_,0,$len) eq $str } @sym_names ];
+        if ($str) {
+            return [ grep { substr($_,0,$len) eq $str } @sym_names ];
+        } else {
+            return \@sym_names;
+        }
     }
 }
 
