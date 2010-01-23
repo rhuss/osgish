@@ -18,13 +18,64 @@ use Data::Dumper;
 
 use OSGi::Osgish;
 
+
+=head1 SYNOPSIS
+
+  osgish [options] 
+
+  osgish --help
+
+  osgish --version
+
+ Options:
+   --server <server>       URL or symbolic name of OSGi server to connect to
+   --user <user>           Credential used for authentication   
+   --password <pwd>  
+   --proxy <url>           URL to proxy
+   --proxy-user <user>     Authentication information for a proxy
+   --proxy-password <pwd>
+   --config                Path to an optional configuration file (default: ~/.osgish)
+
+=head1 DESCRIPTION
+
+B<Osgish> is the administrator's shell for OSGi. It's focus is on simple usage
+for common administrative tasks. There are many other shells for OSGi as well,
+most (if not all) implemented in Java. Osgish unique features are
+
+=over 4
+
+=item *
+
+Readline and history support based on GNU Readline/History as known from other
+shells like 'bash'. When GNU Readline is not available, a pure Perl Module is
+used instead.
+
+=item *
+
+Context sensitive argument completion, e.g. on bundle symbolic names. 
+
+=item * 
+
+Colored output (can be switched off)
+
+=item *
+
+Multi-Server support
+
+=item * 
+
+Remote operation via HTTP(S)
+
+=back
+
+=cut
+
 my %opts = ();
 my $result = GetOptions(\%opts,
                         "server|s=s",
                         "user|u=s","password|p=s",
                         "proxy=s",
                         "proxy-user=s","proxy-password=s",
-                        "target|t=s","target-user=s","target-password=s",
                         "config=s",
                         "version!",
                         "help|h!" => sub { &Getopt::Long::HelpMessage() }
@@ -122,7 +173,7 @@ sub bundle_commands {
 sub service_commands {
     my $cmds = { 
                 "ls" => { 
-                         desc => "List all service",
+                         desc => "List all services",
                          proc => \&cmd_list_services,
                         },
                };
@@ -158,6 +209,18 @@ sub global_commands {
                    desc => "Show last error (if any)",
                    proc => \&cmd_last_error
                   },
+       "help" => {
+             desc => "Print helpful information",
+             args => sub { shift->help_args(undef, @_); },
+             method => sub { shift->help_call(undef, @_); }
+                 },
+       "h" => { alias => "help", exclude_from_completion=>1},
+       "quit" => {
+                  desc => "Quit",
+                  maxargs => 0,
+                  method => sub { shift->exit_requested(1); }
+                 },
+       "q" => { alias => 'quit', exclude_from_completion => 1 },
        $server ? ("shutdown" => {
                                  desc => "Shutdown server",
                                  proc => \&cmd_shutdown
