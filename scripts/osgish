@@ -9,7 +9,7 @@ osgish - Admin's OSGi Shell
 use Term::Clui;
 use Term::ShellUI;
 use Term::ANSIColor qw(:constants);
-use Getopt::Long;
+use Getopt::Long qw(GetOptionsFromArray);
 use JMX::Jmx4Perl::Config;
 use strict;
 use English;
@@ -90,7 +90,7 @@ my $use_color = 1;
 my $no_color_prompt = 0;        # Don't color for certain readline imp.
 my $config = &get_config($opts{config});
 my $jmx_config = new JMX::Jmx4Perl::Config($config);
-my $args = &get_args(\%opts);
+my $j4p_args = &get_j4p_args(\%opts);
 
 &init;
 
@@ -347,67 +347,46 @@ sub switch_to_server {
 
 # List bundles
 sub cmd_list_bundles {
-    my ($filter,$opts) = &extract_list_args(@_);
-    unless ($osgi) {
-        print "Not connected to a server\n";
-        return;  
-    }
+    print "Not connected to a server\n" and return unless $osgi;
+    my ($opts,@filters) = &extract_command_args(["s!"],@_);
     my $bundles = $osgi->bundles;
     my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
     $text .= "-" x 87 . "\n";
     my $nr = 0;
-    my @filtered_bundles = $filter ? grep { $_->{SymbolicName} =~ $filter } values %$bundles : values %$bundles;
-    for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @filtered_bundles) {
-        my $id = $b->{Identifier};
-        my ($green,$red,$reset) = &get_color("bundle_active","bundle_inactive",RESET);
-        my $state = lc $b->{State};
-        my $color = "";
-        $color = $red if $state eq "installed";
-        $color = $green if $state eq "active";
-        my $state = uc(substr($state,0,1)) . substr($state,1);
-        my $level = $b->{StartLevel};
-
-        my $name = $b->{Headers}->{'[Bundle-Name]'}->{Value};
-        my $sym_name = $b->{SymbolicName};
-        my $version = $b->{Version};
-        my $location = $b->{Location};
-        my $desc = $opts->{s} ? 
-          $sym_name || $location :
-          $name || $sym_name || $location;
-        $desc .= " ($version)" if $version && $version ne "0.0.0";
-        
-        $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
-        $nr++;
+    
+    my $filtered_bundles = &filter_bundles($bundles,$opts,@filters);
+    return unless @$filtered_bundles;
+    
+    if (@$filtered_bundles == 1) {
+        # Print single info for bundle
+        print "TODO\n";
+    } else {
+        for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @$filtered_bundles) {
+            my $id = $b->{Identifier};
+            my ($green,$red,$reset) = &get_color("bundle_active","bundle_inactive",RESET);
+            my $state = lc $b->{State};
+            my $color = "";
+            $color = $red if $state eq "installed";
+            $color = $green if $state eq "active";
+            my $state = uc(substr($state,0,1)) . substr($state,1);
+            my $level = $b->{StartLevel};
+            
+            my $name = $b->{Headers}->{'[Bundle-Name]'}->{Value};
+            my $sym_name = $b->{SymbolicName};
+            my $version = $b->{Version};
+            my $location = $b->{Location};
+            my $desc = $opts->{s} ? 
+              $sym_name || $location :
+                $name || $sym_name || $location;
+            $desc .= " ($version)" if $version && $version ne "0.0.0";
+            
+            $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
+            $nr++;
+        }
+        &print_paged($text,$nr);
     }
-    &print_paged($text,$nr);
     #print $text;
     #print Dumper($bundles);
-}
-
-sub extract_list_args {    
-    my @args = @_;
-    my $filter_arg;
-    my $opts = {};    
-    while (@args) {
-        my $a = shift @args;
-        if ($a =~ /^\-(\w+)$/) {
-            $opts->{$1} = 1;
-        } else {
-            die "Only one no option argument can be given\n" if $filter_arg;
-            $filter_arg = $a;
-        }
-    }
-    
-    my $filter;
-    if ($filter_arg) {
-        if ($filter_arg =~ /\*$/) {
-            chop $filter_arg;
-            $filter = qr/^$filter_arg/;
-        } else {
-            $filter = qr/^$filter_arg$/;
-        }
-    } 
-    return ($filter,$opts);
 }
 
 sub cmd_start_bundle {
@@ -423,16 +402,17 @@ sub cmd_stop_bundle {
 # =========================================================================================
 
 sub cmd_list_services { 
-    unless ($osgi) {
-        print "Not connected to a server\n";
-        return;  
-    }
+    print "Not connected to a server\n" and return unless $osgi;
     my $services = $osgi->services;
-    my $text = sprintf("%4.4s   %-60.60s %5.5s | %s\n","Id","Class","Bd-Id","Using bundles");
+    my ($opts,@filters) = &extract_command_args(["u=s","b=s"],@_);
+
+    my $filtered_services = &filter_services($services,$opts,@filters);
+    return unless @$filtered_services;
+    
+    my $text = sprintf("%4.4s   %-60.60s %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
     $text .= "-" x 74 . "+" . "-" x 24 . "\n";
     my $nr = 0;
-    for my $k (sort { $services->{$a}->{Identifier} <=> $services->{$b}->{Identifier} } keys %$services) {
-        my $s = $services->{$k};
+    for my $s (sort { $a->{Identifier} <=> $b->{Identifier} } @{$filtered_services}) {
         my $id = $s->{Identifier};
         my ($c_id,$c_interf,$c_using,$r) = &get_color("service_id","service_interface","service_using",RESET);
         my $using_bundles = $s->{UsingBundles} || [];
@@ -514,9 +494,9 @@ sub get_osgi {
     my $sc = $server_map->{$server};
     return undef unless $sc;
     if ($sc->{from_config}) {
-        return new OSGi::Osgish({ %$args, server => $server, config => $jmx_config});
+        return new OSGi::Osgish({ %$j4p_args, server => $server, config => $jmx_config});
     } else {
-        return new OSGi::Osgish({ %$args, url => $sc->{url}});
+        return new OSGi::Osgish({ %$j4p_args, url => $sc->{url}});
     }
 }
 
@@ -544,7 +524,23 @@ sub get_config {
     return $ret;
 }
 
-sub get_args {
+# For a command, extract args and options
+sub extract_command_args {
+    my ($spec,@args) = @_;
+    my $opts = {};
+    GetOptionsFromArray(\@args, $opts,@{$spec});
+    return ($opts,@args);
+}
+
+# Convert * and . to proper regexp
+sub convert_wildcard_pattern_to_regexp {
+    my $wildcard = shift;
+    $wildcard =~ s/\?/./g;
+    $wildcard =~ s/\*/.*/g;
+    return qr/^$wildcard$/;
+}
+
+sub get_j4p_args {
     my $o = shift;
     my $ret = { };
     
@@ -676,4 +672,56 @@ sub get_color_theme {
             prompt_context => CYAN,
             prompt_empty => RED
            };
+}
+
+
+# Filter bundles according to some criteria
+sub filter_bundles {
+    my ($bundles,$opts,@filters) = @_;
+
+    if (@filters) {
+        my %filtered_bundles;
+        for my $f (@filters) {
+            my $regexp = &convert_wildcard_pattern_to_regexp($f);
+            for my $b (values %$bundles) {
+                if ($b->{SymbolicName} =~ $regexp || ($f =~ /^\d+$/ && $b->{Identifier} == $f)) {
+                    $filtered_bundles{$b->{Identifier}} = $b;
+                }
+            }
+        }
+        return [values %filtered_bundles];
+    } else {
+        return [values %$bundles];
+    }
+}
+
+# Filter services according to one or more criteria
+sub filter_services {
+    my ($services,$opts,@filters) = @_;
+    my %found = ();
+    my $rest = [values %$services];
+    if ($opts->{u}) {
+        my $r = [];
+        for my $s (@$rest) {
+            if (grep { $_ == $opts->{u} } @{$s->{UsingBundles}}) {
+                $found{$s->{Identifier}} = 1;
+            } else {
+                push @$r,$s;
+            }
+        }
+        $rest = $r;
+    } 
+    if ($opts->{b}) {
+        my $r = [];
+        for my $s (@$rest) {
+            if (grep { $_ == $opts->{u} } [ $s->{BundleIdentifier} ]) {
+                $found{$s->{Identifier}} = 1;
+            } else {
+                push @$r,$s;
+            }
+        }
+        $rest = $r;        
+    }
+    
+    return [values %$services];
 }
