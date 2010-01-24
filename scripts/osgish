@@ -105,20 +105,16 @@ my ($server_from_config,$server_list,$server_map) = &init_server_list(\%opts,$jm
 # Context for subcommands
 my @contexts = ();
 
-my $top_commands = &top_commands;
+# Initialize color theme
+my $color_theme = &get_color_theme($config);
+
+# Create a UI object and let it run
 my $term = new Term::ShellUI(
-                             commands => $top_commands,
+                             commands => &top_commands,
                              history_file => "~/.osgish_history",
                              prompt => \&prompt
                             );
-#$term->{debug_complete}=5;
-
-# Special readline customization:
-if ($term->{term}->ReadLine eq "Term::ReadLine::Perl") {
-    $term->{term}->ornaments(0);
-    $no_color_prompt = 1;
-}
-$term->run;
+&run_term($term);
 
 # ====================================================================
 # Commands used
@@ -127,9 +123,10 @@ $term->run;
 sub top_commands {
     return 
         { 
-         &bundle_commands,
-         &service_commands,
-         &global_commands
+         %{&bundle_commands},
+         %{&service_commands},
+         %{&server_commands},
+         %{&global_commands},
 #         "help" =>   { 
 #                      desc => "Print helpful information",
 #                      args => sub { shift->help_args($helpcats, @_); },
@@ -140,10 +137,12 @@ sub top_commands {
 
 # Commands in context "bundle"
 sub bundle_commands {
+    my $parent_cmds = shift || \&top_commands;
     my $cmds = { 
                 "ls" => { 
                          desc => "List all bundles",
                          proc => \&cmd_list_bundles,
+                         args => sub { &complete_bundles(@_,no_ids => 1) }
                         },
                 "start" => { 
                             desc => "Start a bundle",
@@ -157,75 +156,90 @@ sub bundle_commands {
                           }
                };
     
-    return $server ? (
+    return $server ? {
                       "bundle" => { 
                                    desc => "Bundles related operations",
                                    proc => sub { 
-                                       &cmd_set_context("bundle",$cmds,&top_commands) 
+                                       &cmd_set_context("bundle",$cmds,$parent_cmds) 
                                    },
                                    cmds => $cmds                       
                                   },
-                      "b" => { alias => "bundle", exclude_from_completion=>1},
-                     ) : ();
+                      "b" => { alias => "bundle", exclude_from_completion => 1},
+                     } : {};
+}
+
+
+sub server_commands {
+
+    return {
+            "servers" => { 
+                          desc => "Show all configured servers",
+                          proc => \&cmd_show_servers
+                         },
+            "connect" => { 
+                          desc => "Connect to a server by its URL or symbolic name",
+                          minargs => 1, maxargs => 2,
+                          args => sub { &complete_servers(@_) },
+                          proc => \&cmd_connect
+                         },
+           };
 }
 
 # Commands im context "service"
 sub service_commands {
-    my $cmds = { 
-                "ls" => { 
-                         desc => "List all services",
-                         proc => \&cmd_list_services,
+    if ($server) {
+        my $cmds = &service_sub_commands;
+        return {
+           "service" => { 
+                         desc => "Service related operations",
+                         proc => sub { 
+                             &cmd_set_context("service",$cmds,\&top_commands) 
+                         },
+                         cmds => $cmds                       
                         },
-               };
-    
-    return $server ? (
-                      "service" => { 
-                                   desc => "Service related operations",
-                                   proc => sub { 
-                                       &cmd_set_context("service",$cmds,&top_commands) 
-                                   },
-                                   cmds => $cmds                       
-                                  },
-                      "s" => { alias => "service", exclude_from_completion=>1},
-                      "serv" => { alias => "service", exclude_from_completion=>1},
-                     ) : ();
+           "s" => { alias => "service", exclude_from_completion => 1},
+           "serv" => { alias => "service", exclude_from_completion => 1}
+          };
+    } else {
+        return {};
+    }
+}
+
+sub service_sub_commands {
+    return { 
+            "ls" => { 
+                     desc => "List all services",
+                     proc => \&cmd_list_services,
+                    },
+            %{&bundle_commands(sub { return { %{&service_sub_commands},%{&global_commands}}})}
+           };    
 }
 
 # Commands always available
 sub global_commands {
     return 
-      ( 
-       "connect" => { 
-                     desc => "Connect to a server by its URL or symbolic name",
-                     minargs => 1, maxargs => 2,
-                     args => sub { &complete_servers(@_) },
-                     proc => \&cmd_connect
+        {
+         "error" => {
+                     desc => "Show last error (if any)",
+                     proc => \&cmd_last_error
                     },
-       "servers" => { 
-                     desc => "Show all configured servers",
-                     proc => \&cmd_show_servers
-                    },
-       "error" => {
-                   desc => "Show last error (if any)",
-                   proc => \&cmd_last_error
-                  },
-       "help" => {
-             desc => "Print helpful information",
-             args => sub { shift->help_args(undef, @_); },
-             method => sub { shift->help_call(undef, @_); }
-                 },
-       "h" => { alias => "help", exclude_from_completion=>1},
-       "quit" => {
-                  desc => "Quit",
-                  maxargs => 0,
-                  method => sub { shift->exit_requested(1); }
-                 },
-       "q" => { alias => 'quit', exclude_from_completion => 1 },
-       $server ? ("shutdown" => {
-                                 desc => "Shutdown server",
-                                 proc => \&cmd_shutdown
-                                }) : ()
-      );
+         "help" => {
+                    desc => "Print helpful information",
+                    args => sub { shift->help_args(undef, @_); },
+                    method => sub { shift->help_call(undef, @_); }
+                   },
+         "h" => { alias => "help", exclude_from_completion=>1},
+         "quit" => {
+                    desc => "Quit",
+                    maxargs => 0,
+                    method => sub { shift->exit_requested(1); }
+                   },
+         "q" => { alias => 'quit', exclude_from_completion => 1 },
+         $server ? ("shutdown" => {
+                                   desc => "Shutdown server",
+                                   proc => \&cmd_shutdown
+                                  }) : ()
+        };
 }
 
 # ==================
@@ -245,14 +259,14 @@ sub cmd_set_context {
     $term->commands
       ({
         %$sub_cmds,
-        &global_commands,
+        %{&global_commands},
         $parent_cmds ? 
         (".." => {
                  desc => "Go up one level",
                  proc => 
                   sub { 
                       pop @contexts;
-                      $term->commands($parent_cmds);
+                      $term->commands(&{$parent_cmds});
                   }
                  },
          "/" => { 
@@ -292,14 +306,14 @@ sub cmd_connect {
     } 
     &reset_context;
     $term->commands(&top_commands);
-    my ($yellow,$reset) = &get_color(YELLOW,RESET);
+    my ($yellow,$reset) = &get_color("host",RESET);
     print "Connected to " . $yellow . $server . $reset .  " (" . $osgi->url . ")\n";
 }
 
 # Show all servers
 sub cmd_show_servers {
     for my $s (@$server_list) {
-        my ($ms,$me) = &get_color(YELLOW,RESET);
+        my ($ms,$me) = &get_color("host",RESET);
         my $sep = $s->{from_config} ? "-" : "*";
         printf " " . $ms . '%30.30s' . $me . ' %s %s' . "\n",$s->{name},$sep,$s->{url};
     }
@@ -311,7 +325,7 @@ sub cmd_shutdown {
         print "Not connected to a server\n";
         return;
     }
-    my ($yellow,$reset) = &get_color(YELLOW,RESET);
+    my ($yellow,$reset) = &get_color("host",RESET);
     my $answer = &choose("Really shutdown " . $yellow . $server . $reset . " ?","yes","no");
     if ($answer eq "yes") {
         $osgi->shutdown;
@@ -333,7 +347,7 @@ sub switch_to_server {
 
 # List bundles
 sub cmd_list_bundles {
-
+    my ($filter,$opts) = &extract_list_args(@_);
     unless ($osgi) {
         print "Not connected to a server\n";
         return;  
@@ -342,10 +356,10 @@ sub cmd_list_bundles {
     my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
     $text .= "-" x 87 . "\n";
     my $nr = 0;
-    for my $k (sort { $bundles->{$a}->{Identifier} <=> $bundles->{$b}->{Identifier} } keys %$bundles) {
-        my $b = $bundles->{$k};
+    my @filtered_bundles = $filter ? grep { $_->{SymbolicName} =~ $filter } values %$bundles : values %$bundles;
+    for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @filtered_bundles) {
         my $id = $b->{Identifier};
-        my ($green,$red,$reset) = &get_color(GREEN,RED,RESET);
+        my ($green,$red,$reset) = &get_color("bundle_active","bundle_inactive",RESET);
         my $state = lc $b->{State};
         my $color = "";
         $color = $red if $state eq "installed";
@@ -357,7 +371,9 @@ sub cmd_list_bundles {
         my $sym_name = $b->{SymbolicName};
         my $version = $b->{Version};
         my $location = $b->{Location};
-        my $desc = $name || $sym_name || $location;
+        my $desc = $opts->{s} ? 
+          $sym_name || $location :
+          $name || $sym_name || $location;
         $desc .= " ($version)" if $version && $version ne "0.0.0";
         
         $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
@@ -366,6 +382,32 @@ sub cmd_list_bundles {
     &print_paged($text,$nr);
     #print $text;
     #print Dumper($bundles);
+}
+
+sub extract_list_args {    
+    my @args = @_;
+    my $filter_arg;
+    my $opts = {};    
+    while (@args) {
+        my $a = shift @args;
+        if ($a =~ /^\-(\w+)$/) {
+            $opts->{$1} = 1;
+        } else {
+            die "Only one no option argument can be given\n" if $filter_arg;
+            $filter_arg = $a;
+        }
+    }
+    
+    my $filter;
+    if ($filter_arg) {
+        if ($filter_arg =~ /\*$/) {
+            chop $filter_arg;
+            $filter = qr/^$filter_arg/;
+        } else {
+            $filter = qr/^$filter_arg$/;
+        }
+    } 
+    return ($filter,$opts);
 }
 
 sub cmd_start_bundle {
@@ -392,14 +434,14 @@ sub cmd_list_services {
     for my $k (sort { $services->{$a}->{Identifier} <=> $services->{$b}->{Identifier} } keys %$services) {
         my $s = $services->{$k};
         my $id = $s->{Identifier};
-        my ($green,$red,$reset) = &get_color(GREEN,RED,RESET);
+        my ($c_id,$c_interf,$c_using,$r) = &get_color("service_id","service_interface","service_using",RESET);
         my $using_bundles = $s->{UsingBundles} || [];
         my $using = $using_bundles ? join (", ",sort { $a <=> $b } @$using_bundles) : "";
         my $bundle_id = $s->{BundleIdentifier};
         my $classes = $s->{objectClass};        
-        $text .= sprintf "%4d   %-60.60s  %4d | %s\n",$id,$classes->[0],$bundle_id,$using;
+        $text .= sprintf "%s%4d%s   %s%-60.60s%s  %4d | %s%s%s\n",$c_id,$id,$r,$c_interf,$classes->[0],$r,$bundle_id,$c_using,$using,$r;
         for my $i (1 .. $#$classes) {
-            $text .= sprintf "       %-66.66s |\n",$classes->[$i];
+            $text .= sprintf "       %s%-66.66s%s |\n",$c_interf,$classes->[$i],$r;
         }
         $nr++;
     }
@@ -433,11 +475,12 @@ sub complete_servers {
 }
 
 sub complete_bundles {
-    my ($term,$cmpl) = @_;
+    my ($term,$cmpl,@rest) = @_;
+    my $args = @rest ? { @rest } : {};
     return [] unless $osgi;
     my $str = $cmpl->{str} || "";
     my $len = length($str);
-    if ($str =~ /^\d+$/) { 
+    if (!$args->{no_ids} && $str =~ /^\d+$/) { 
         # Complete on ids
         return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{$osgi->ids(use_cached => 1)} ];
     } else {
@@ -452,7 +495,7 @@ sub complete_bundles {
 
 sub prompt {
     my $term = shift;
-    my ($yellow,$cyan,$red,$reset) = $no_color_prompt ? ("","","","") : &get_color(YELLOW,CYAN,RED,RESET,{escape => 1});
+    my ($yellow,$cyan,$red,$reset) = $no_color_prompt ? ("","","","") : &get_color("host","prompt_context","prompt_empty",RESET,{escape => 1});
     my $p = "[";
     $p .= $server ? $yellow . $server : $red . "osgish";
     $p .= $reset;
@@ -534,12 +577,22 @@ sub get_color {
     my $args = ref($colors[$#colors]) eq "HASH" ? pop @colors : {};
     if ($use_color) {
         if ($args->{escape}) {
-            return map { "\01" . $_ . "\02" } @colors;
+            return map { "\01" . &resolve_color($_) . "\02" } @colors;
         } else {
-            return @colors;
+            return map { &resolve_color($_) } @colors;
         }
     } else {
         return map { "" } @colors;
+    }
+}
+
+sub resolve_color {
+    my $c = shift;
+    my $color = $color_theme->{$c};
+    if (exists($color_theme->{$c})) {
+        return defined($color) ? $color : "";
+    } else {
+        return $c;
     }
 }
 
@@ -557,9 +610,9 @@ sub init {
     # Force pager to show colors
     if ($use_color) {
         if ($ENV{LESS}) {
-            $ENV{LESS} .= " -f";
+            $ENV{LESS} .= " -f -E";
         } else {
-            $ENV{LESS} = "-f";
+            $ENV{LESS} = "-f -E";
         }
     }
 }
@@ -596,3 +649,31 @@ sub init_server_list {
               { map { $_->{name} => $_ } @servers });
 }
 
+# Run ShellUI and never return. Provide some special
+# ReadLine treatment
+sub run_term {
+    my $t = shift;
+    # Special readline customization:
+    if ($t->{term}->ReadLine eq "Term::ReadLine::Perl") {
+        $t->{term}->ornaments(0);
+        $no_color_prompt = 1;
+    }
+    #$t->{debug_complete}=5;
+    $t->run;
+}
+
+sub get_color_theme {
+    my $config = shift;
+
+    # For now, we return a fixed theme:
+    return { 
+            host => YELLOW,
+            bundle_active => GREEN,
+            bundle_inactive => RED,
+            service_id => GREEN,
+            service_interface => undef,
+            service_using => RED,
+            prompt_context => CYAN,
+            prompt_empty => RED
+           };
+}
