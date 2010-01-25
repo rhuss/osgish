@@ -1,6 +1,6 @@
 ---
 name: osgish
-version: v0.1.0_1
+version: v0.1.0_2
 author:
   - Roland Huss (roland@cpan.org)
 abstract: A readline shell for OSGi
@@ -23,6 +23,7 @@ requires:
   Term::Clui: 0
   Term::ReadLine: 0
   Term::ReadLine::Perl: 0
+  Term::ShellUI: 0.86
 recommends:
   Term::ANSIColor: 2.02
   Term::ReadLine::Gnu: 0.27
@@ -31,7 +32,7 @@ configure_requires:
 provides:
   OSGi::Osgish:
     file: lib/OSGi/Osgish.pm
-    version: v0.1.0_1
+    version: v0.1.0_2
 generated_by: Module::Build version 0.35
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html

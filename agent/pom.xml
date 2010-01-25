@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jmx4perl</groupId>
   <artifactId>osgish-agent</artifactId>
-  <version>0.1.0.M1</version>
+  <version>0.1.0.M2</version>
   <packaging>bundle</packaging>
   <name>osgish-agent</name>
   <description>osgish - Agent part for the OSGi shell 'osgish'</description>
