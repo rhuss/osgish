@@ -18,7 +18,7 @@ use JMX::Jmx4Perl;
 use JMX::Jmx4Perl::Request;
 use Data::Dumper;
 
-$VERSION = "0.1.0_1";
+$VERSION = "0.1.0_2";
 
 my $MBEANS_MAP = 
     { 
@@ -79,17 +79,32 @@ sub services {
     return $self->{service}->{list};
 }
 
-sub symbolic_names { 
+# Return a hashref with symbolic names as keys 
+# and the ids as values
+sub bundle_symbolic_names { 
     my $self = shift;
     $self->_update_bundles(@_);
     return $self->{bundle}->{symbolic_names};
 }
 
-sub ids {
+sub bundle_ids {
     my $self = shift;
     $self->_update_bundles(@_);
     return $self->{bundle}->{ids};
 }
+
+sub service_object_classes {
+    my $self = shift;
+    $self->_update_services(@_);
+    return $self->{service}->{object_classes};
+}
+
+sub service_ids {
+    my $self = shift;
+    $self->_update_services(@_);
+    return $self->{service}->{ids};
+}
+
 
 sub start_bundle {
     shift->_start_stop_bundle("start",@_);
@@ -192,7 +207,9 @@ sub _fetch_bundles {
 
 sub _fetch_services {
     my $self = shift;
-    $self->{service} = $self->_fetch_list("serviceState","listServices");
+    my $service = $self->_fetch_list("serviceState","listServices");
+    $service->{object_classes} = $self->_extract_object_classes($service->{list});
+    $self->{service} = $service;
 }
 
 sub _fetch_list {
@@ -221,6 +238,20 @@ sub _extract_symbolic_names {
         next unless $sym;
         my $id = $bundles->{$e}->{Identifier};
         $ret->{$sym} = $id;
+    }
+    return $ret;
+}
+
+sub _extract_object_classes {
+    my $self = shift;
+    my $services = shift;
+    my $ret = {};
+    for my $s (values %$services) {
+        my $classes = $s->{objectClass};
+        next unless $classes;
+        $classes = [ $classes ] unless ref($classes) eq "ARRAY";
+        my $id = $s->{Identifier};
+        map { $ret->{$_} = $id } @$classes;
     }
     return $ret;
 }

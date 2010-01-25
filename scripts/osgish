@@ -210,6 +210,8 @@ sub service_sub_commands {
             "ls" => { 
                      desc => "List all services",
                      proc => \&cmd_list_services,
+                     args => sub { &complete_services(@_,no_ids => 1) }
+                     
                     },
             "bls" => { 
                       desc => "List bundles",
@@ -460,22 +462,36 @@ sub complete_servers {
 }
 
 sub complete_bundles {
-    my ($term,$cmpl,@rest) = @_;
+    return &complete_bundle_or_service(sub { $osgi->bundle_ids(use_cached =>) },
+                                       sub { $osgi->bundle_symbolic_names(use_cached => 1)},
+                                       @_);
+}
+
+sub complete_services {
+    return &complete_bundle_or_service(sub { $osgi->service_ids(use_cached =>) },
+                                       sub { $osgi->service_object_classes(use_cached => 1)},
+                                       @_);
+}
+
+sub complete_bundle_or_service {
+    my ($ids_sub,$names_sub,$term,$cmpl,@rest) = @_;
+
     my $args = @rest ? { @rest } : {};
     return [] unless $osgi;
     my $str = $cmpl->{str} || "";
     my $len = length($str);
     if (!$args->{no_ids} && $str =~ /^\d+$/) { 
         # Complete on ids
-        return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{$osgi->ids(use_cached => 1)} ];
+        return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{&$ids_sub()} ];
     } else {
-        my @sym_names = sort keys %{$osgi->symbolic_names(use_cached => 1)};
+        my @sym_names = sort keys %{&$names_sub()};
         if ($str) {
             return [ grep { substr($_,0,$len) eq $str } @sym_names ];
         } else {
             return \@sym_names;
         }
     }
+
 }
 
 sub prompt {
@@ -608,13 +624,21 @@ sub print_paged {
 }
 
 sub init {
-    # Force pager to show colors
+    # Force pipe, quit if less than a screen-full.
+    my @args = ('-f','-E');
     if ($use_color) {
-        if ($ENV{LESS}) {
-            $ENV{LESS} .= " -f -E";
-        } else {
-            $ENV{LESS} = "-f -E";
+        # Raw characters
+        push @args,'-r';
+    }
+    if ($ENV{LESS}) {
+        my $l = "";
+        for my $a (@args) {
+            $l .= $a . " " unless $ENV{LESS} =~ /-$a/;
         }
+        chop $l if length($l);
+        $ENV{LESS} = $l;
+    } else {
+        $ENV{LESS} = join " ",@args;
     }
 }
 
