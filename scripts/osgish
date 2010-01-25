@@ -140,7 +140,7 @@ sub bundle_commands {
     my $parent_cmds = shift || \&top_commands;
     my $cmds = { 
                 "ls" => { 
-                         desc => "List all bundles",
+                         desc => "List bundles",
                          proc => \&cmd_list_bundles,
                          args => sub { &complete_bundles(@_,no_ids => 1) }
                         },
@@ -211,6 +211,11 @@ sub service_sub_commands {
                      desc => "List all services",
                      proc => \&cmd_list_services,
                     },
+            "bls" => { 
+                      desc => "List bundles",
+                      proc => \&cmd_list_bundles,
+                      args => sub { &complete_bundles(@_,no_ids => 1) }                      
+                     },
             %{&bundle_commands(sub { return { %{&service_sub_commands},%{&global_commands}}})}
            };    
 }
@@ -700,28 +705,40 @@ sub filter_services {
     my ($services,$opts,@filters) = @_;
     my %found = ();
     my $rest = [values %$services];
+    my $filtered = undef;
     if ($opts->{u}) {
-        my $r = [];
         for my $s (@$rest) {
             if (grep { $_ == $opts->{u} } @{$s->{UsingBundles}}) {
-                $found{$s->{Identifier}} = 1;
-            } else {
-                push @$r,$s;
-            }
+                $found{$s->{Identifier}} = $s;
+            } 
         }
-        $rest = $r;
+        $filtered = 1;
+        $rest = [values %found];
     } 
     if ($opts->{b}) {
-        my $r = [];
         for my $s (@$rest) {
-            if (grep { $_ == $opts->{u} } [ $s->{BundleIdentifier} ]) {
-                $found{$s->{Identifier}} = 1;
-            } else {
-                push @$r,$s;
+            if ($s->{BundleIdentifier} == $opts->{b}) {
+                $found{$s->{Identifier}} = $s;
+            } elsif ($filtered) {
+                delete $found{$s->{Identifier}};
             }
         }
-        $rest = $r;        
+        $filtered = 1;
+        $rest = [values %found];
     }
-    
-    return [values %$services];
+    if (@filters) {
+        for my $f (@filters) {
+            my $regexp = &convert_wildcard_pattern_to_regexp($f);
+            for my $s (@$rest) {
+                if (grep { $_ =~ $regexp } @{$s->{objectClass}}) {
+                    $found{$s->{Identifier}} = $s;
+                } elsif ($filtered) {
+                    delete $found{$s->{Identifier}};
+                }
+            }
+        }
+        $filtered = 1;
+        $rest = [values %found];
+    }
+    return $rest;
 }
