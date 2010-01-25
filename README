@@ -63,8 +63,10 @@ INSTALLATION
   implementation is GNU Readline/History Library which will be used if
   installed. It is really worth to go the extra way to install GNU
   readline, even on OS X or Windows (which is not trivial). E.g. for
-  OS X you can use the package 'p5-term-readline-gnu' to install
-  readline along with the needed module. 
+  OS X you can use the package 'p5-term-readline-gnu' from Mac Ports
+  to install readline along with the needed module. For Debian, the
+  easiest way is to install the package 'libterm-readline-gnu-perl'
+  via apt.
 
   For the module to work, you need to provision
   "osgi-agent-<version>.jar" to each OSGi container you want to

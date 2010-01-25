@@ -1,10 +1,6 @@
-
 01 'servers save'
-02 'bundle start'
-03 'bundle stop' 
-04 Error handling
-05 Fail early on connect (try a JMX attribute)
 06 Configuration handling and per server
 07 install/uninstall/update: Stream bundle over the wire, 
    needs help from OsgihService for uploading 
    the jar
+08 '--no-color' option

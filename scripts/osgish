@@ -678,9 +678,10 @@ sub init_server_list {
 # ReadLine treatment
 sub run_term {
     my $t = shift;
-    # Special readline customization:
+    $t->{term}->ornaments(0);
+    
+    # Special readline customization for Term::ReadLine::Perl
     if ($t->{term}->ReadLine eq "Term::ReadLine::Perl") {
-        $t->{term}->ornaments(0);
         $no_color_prompt = 1;
     }
     #$t->{debug_complete}=5;
