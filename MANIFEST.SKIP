@@ -52,4 +52,4 @@ agent/osgish-agent.iml
 \.iml$
 \.ipr$
 \.iws$
-*\.tar.gz$
+\.tar.gz$
