@@ -169,6 +169,7 @@ my $build = $class->new
                 "Config::General" => 0,
                 "Term::ReadLine" => 0,
                 "Term::ReadLine::Perl" => 0,
+                "Term::ShellUI" => "0.86",
                 "Term::Clui" => 0
                },
    recommends => {
