@@ -625,7 +625,7 @@ sub print_paged {
 
 sub init {
     # Force pipe, quit if less than a screen-full.
-    my @args = ('-f','-E');
+    my @args = ('-f','-E','-X');
     if ($use_color) {
         # Raw characters
         push @args,'-r';
@@ -633,10 +633,12 @@ sub init {
     if ($ENV{LESS}) {
         my $l = "";
         for my $a (@args) {
-            $l .= $a . " " unless $ENV{LESS} =~ /-$a/;
+            $l .= $a . " " unless $ENV{LESS} =~ /$a/;
         }
-        chop $l if length($l);
-        $ENV{LESS} = $l;
+        if (length($l)) {
+            chop $l;
+            $ENV{LESS} .= " " . $l;
+        }
     } else {
         $ENV{LESS} = join " ",@args;
     }
