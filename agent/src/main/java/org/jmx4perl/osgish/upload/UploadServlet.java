@@ -4,7 +4,7 @@ import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;
 import org.apache.commons.fileupload.FileUploadException;
 import org.apache.commons.fileupload.servlet.ServletFileUpload;
-import org.osgi.framework.BundleContext;
+import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.ServiceTracker;
 
 import javax.servlet.ServletException;
@@ -21,20 +21,16 @@ import java.io.*;
  */
 public class UploadServlet extends HttpServlet {
 
-    // Context our bundle is in
-    private BundleContext bundleContext;
-
     // for logging. It is supposed to be open and managed outside
     private ServiceTracker logTracker;
 
     // Directory where to upload
     private File uploadDirectory;
 
-    public UploadServlet(BundleContext pContext, ServiceTracker pLogTracker) {
-        bundleContext = pContext;
+    public UploadServlet(ServiceTracker pLogTracker,File pDataDir) {
         logTracker = pLogTracker;
 
-        uploadDirectory = getUploadDirectory(pContext);
+        uploadDirectory = pDataDir;
     }
 
     @Override
@@ -51,7 +47,7 @@ public class UploadServlet extends HttpServlet {
         ServletFileUpload upload = new ServletFileUpload();
 
         // Parse the request
-        FileItemIterator iter = null;
+        FileItemIterator iter;
         try {
             iter = upload.getItemIterator(request);
             while (iter.hasNext()) {
@@ -64,6 +60,11 @@ public class UploadServlet extends HttpServlet {
                     try {
                         OutputStream out = new FileOutputStream(dest);
                         copy(in,out);
+                        LogService log = (LogService) logTracker.getService();
+                        if (log != null) {
+                            log.log(LogService.LOG_INFO,"Uploaded " + dest.getName() +
+                                    " (size: " + dest.length() + ")");
+                        }
                     } catch (IOException exp) {
                         throw new ServletException("Cannot copy uploaded file to " +
                                 dest.getAbsolutePath() + ": " + exp,exp);
@@ -76,28 +77,11 @@ public class UploadServlet extends HttpServlet {
         response.setStatus(HttpServletResponse.SC_OK);
     }
 
-    // Check for a upload directory
-    private File getUploadDirectory(BundleContext pContext) {
-        File dir = pContext.getDataFile("");
-        if (dir == null) {
-            // In case the OSGi container doesnt support a bundle specific data directory
-            try {
-                dir = File.createTempFile("osgish-upload",".dir");
-                if(!dir.delete() || !dir.mkdir()) {
-                    throw new IllegalStateException("Cannot create temporary directory " + dir.getAbsolutePath());
-                }
-            } catch (IOException e) {
-                throw new IllegalStateException("Cannot get a upload directory: " + e,e);
-            }
-        }
-        return dir;
-    }
-
     // Copy input stream in output directory
     private void copy(InputStream in,OutputStream out) throws IOException {
 		try {
 			byte[] buffer = new byte[4096];
-			int bytesRead = -1;
+			int bytesRead;
 			while ((bytesRead = in.read(buffer)) != -1) {
 				out.write(buffer, 0, bytesRead);
 			}

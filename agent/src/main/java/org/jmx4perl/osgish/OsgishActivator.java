@@ -3,6 +3,7 @@ package org.jmx4perl.osgish;
 import org.apache.aries.jmx.Activator;
 import org.jmx4perl.osgi.J4pActivator;
 import org.jmx4perl.osgish.upload.UploadServlet;
+import org.jmx4perl.osgish.upload.UploadStore;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
@@ -15,6 +16,8 @@ import org.osgi.util.tracker.ServiceTrackerCustomizer;
 
 import javax.management.*;
 import javax.servlet.ServletException;
+import java.io.File;
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
 
 /**
@@ -33,8 +36,9 @@ public class OsgishActivator implements BundleActivator {
     private J4pActivator j4pActivator;
     private Activator ariesActivator;
 
-    // Name of the servie MBean
+    // Name of our MBeans
     private ObjectName serviceMBeanName;
+    private ObjectName uploadStoreMBeanName;
 
     // MBeanServer where we registered our MBeans
     private MBeanServer mBeanServer;
@@ -48,33 +52,39 @@ public class OsgishActivator implements BundleActivator {
     // Registration of our MBeanServer Service. Might be null
     private ServiceRegistration mBeanServerRegistration;
 
+    // Directory used for upload
+    private File uploadDir;
+
     public OsgishActivator() {
         j4pActivator = new J4pActivator();
         ariesActivator = new Activator();
     }
 
     public void start(BundleContext pContext) throws Exception {
+        uploadDir = getUploadDirectory(pContext);
+
         openLogTracker(pContext);
 
         j4pActivator.start(pContext);
-        registerMBeanServerAsService(pContext);
-        registerOsgiServiceMBean(pContext);
+        registerMBeanServer(pContext);
+        registerMBeans(pContext);
         registerUploadServlet(pContext);
         ariesActivator.start(pContext);
+
     }
 
     public void stop(BundleContext pContext) throws Exception {
         ariesActivator.stop(pContext);
         unregisterUploadServlet();
-        unregisterOsgiServiceMBean();
-        unregisterMBeanServerAsService();
+        unregisterMBeans();
+        unregisterMBeanServer();
         j4pActivator.stop(pContext);
 
         closeLogTracker();
     }
 
 
-    private void registerMBeanServerAsService(BundleContext pContext) {
+    private void registerMBeanServer(BundleContext pContext) {
         ServiceReference mBeanServerRef = pContext.getServiceReference(MBeanServer.class.getCanonicalName());
         if (mBeanServerRef == null) {
             // Register a MBeanServer as service
@@ -102,26 +112,30 @@ public class OsgishActivator implements BundleActivator {
     // Unregister MBeanServer Service if we did the registration.
     // Might not be necessary, since the framework will stop the service anyway
     // But we are nice ;-)
-    private void unregisterMBeanServerAsService() {
+    private void unregisterMBeanServer() {
         if (mBeanServerRegistration != null) {
             mBeanServerRegistration.unregister();
             mBeanServerRegistration = null;
         }
+        mBeanServer = null;
     }
 
     // Register our own service for MBeanServer at use.
-    private void registerOsgiServiceMBean(BundleContext pBundleContext)
+    private void registerMBeans(BundleContext pBundleContext)
             throws MBeanRegistrationException, InstanceAlreadyExistsException, NotCompliantMBeanException {
         OsgishService service = new OsgishService(pBundleContext);
         serviceMBeanName = mBeanServer.registerMBean(service,null).getObjectName();
+
+        UploadStore uploadStore = new UploadStore(uploadDir);
+        uploadStoreMBeanName = mBeanServer.registerMBean(uploadStore,null).getObjectName();
     }
 
     // Un-Register MBean. Since we want to use the same MBeanSever as during registration
     // We kept a reference to the mbean server
-    private void unregisterOsgiServiceMBean() throws InstanceNotFoundException, MBeanRegistrationException {
+    private void unregisterMBeans() throws InstanceNotFoundException, MBeanRegistrationException {
         if (mBeanServer != null) {
             mBeanServer.unregisterMBean(serviceMBeanName);
-            mBeanServer = null;
+            mBeanServer.unregisterMBean(uploadStoreMBeanName);
         }
     }
 
@@ -133,7 +147,7 @@ public class OsgishActivator implements BundleActivator {
 
     // Register servlet at HttpService if it becomes available
     private void registerUploadServlet(BundleContext pContext) {
-        UploadServlet uploadServlet = new UploadServlet(pContext,logTracker);
+        UploadServlet uploadServlet = new UploadServlet(logTracker,uploadDir);
         httpServiceTracker = new ServiceTracker(pContext, HttpService.class.getName(),
                                                 getRegistrationCustomizer(pContext,uploadServlet));
         httpServiceTracker.open();
@@ -199,5 +213,22 @@ public class OsgishActivator implements BundleActivator {
                 exp[0].printStackTrace(System.err);
             }
         }
+    }
+
+    // Check for a upload directory
+    private File getUploadDirectory(BundleContext pContext) {
+        File dir = pContext.getDataFile("");
+        if (dir == null) {
+            // In case the OSGi container doesnt support a bundle specific data directory
+            try {
+                dir = File.createTempFile("osgish-upload",".dir");
+                if(!dir.delete() || !dir.mkdir()) {
+                    throw new IllegalStateException("Cannot create temporary directory " + dir.getAbsolutePath());
+                }
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot get a upload directory: " + e,e);
+            }
+        }
+        return dir;
     }
 }
