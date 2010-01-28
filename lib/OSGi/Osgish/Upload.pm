@@ -10,14 +10,18 @@ OSGi::Osgish::Upload - Upload a bundle to the osgish upload directory
 
 =cut
 
-package OSGi::Osgish;
+package OSGi::Osgish::Upload;
 
 use strict;
 use warnings;
 use LWP::UserAgent;
 use HTTP::Request::Common;
+use OSGi::Osgish;
 use JMX::Jmx4Perl::Agent::UserAgent;
+use Data::Dumper;
 use vars qw($HAS_PROGRESS_BAR);
+
+my $UPLOAD_SERVICE_NAME = "osgish:type=Upload";
 
 BEGIN {
     eval {
@@ -28,16 +32,35 @@ BEGIN {
 
 sub new { 
     my $class = shift;
-    my $cfg = ref($_[0]) eq "HASH" ? $_[0] : {  @_ };
-    die "No upload URL provided" unless $cfg->{url};
+    my $osgish = shift || die "No OSGi::Osgish object given";
     my $ua = new JMX::Jmx4Perl::Agent::UserAgent();
-    $ua->jjagent_config($cfg);
+    $ua->jjagent_config($osgish->cfg());
     my $self = { 
-                cfg => $cfg,
+                url => $osgish->cfg('url') . "-upload",
+                osgish => $osgish,
                 ua => $ua
                };
     bless $self,(ref($class) || $class);
     return $self;
+}
+
+sub list {
+    my $self = shift;
+    my $osgish = $self->{osgish};
+    $self->{list} = $osgish->execute($UPLOAD_SERVICE_NAME,"listUploadDirectory");    
+    return $self->{list};
+}
+
+sub cache_update {
+    # Refrehs internal list cache
+    shift->list;
+}
+
+sub remove {
+    my $self = shift;
+    my $file = shift || die "No file given\n";
+    my $osgish = $self->{osgish};
+    return $osgish->execute($UPLOAD_SERVICE_NAME,"deleteFile",$file);
 }
 
 sub upload { 
@@ -47,7 +70,8 @@ sub upload {
     if (@_) {
         $cfg = ref($_[0]) eq "HASH" ? $_[0] : { @_ };
     }
-    die "No file $file\n" unless -f $file;
+    #$file = glob($file) if $file =~ /^~/;
+    die "No file $file\n" unless $file and -f $file;
     my $ua = $self->{ua};
     
     {
@@ -55,7 +79,7 @@ sub upload {
         
         my $req = 
           POST 
-            $self->{cfg}->{url}, 
+            $self->{url},
               'Content_Type' => 'form-data', 
                 'Content' => { "upload" => [ $file ] };
         my $reader = $self->_content_reader($req->content(),$cfg,$req->header('Content_Length'));
@@ -63,6 +87,19 @@ sub upload {
         my $resp = $ua->request($req);
         die "Error while uploading $file: ",$resp->message if $resp->is_error;
     }
+}
+
+sub complete_files_in_upload_dir {
+    my $self = shift;
+    my $term = shift;
+    my $cmpl = shift;
+    
+    my $list = $self->{list} || $self->list;
+    my $file = $cmpl->{str} || "";
+    my $flen = length($file);
+
+    my @files = grep { substr($_,0,$flen) eq $file } keys %$list;
+    return \@files;
 }
 
 sub _content_reader {
@@ -91,4 +128,5 @@ sub _content_reader {
 
 #my $u = new OSGi::Osgish(url => "http://localhost:8080/j4p-upload");
 #$u->upload("n",progress_bar => 1);
+
 1; 

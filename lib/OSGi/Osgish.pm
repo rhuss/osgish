@@ -16,6 +16,7 @@ use strict;
 use vars qw($VERSION);
 use JMX::Jmx4Perl;
 use JMX::Jmx4Perl::Request;
+use OSGi::Osgish::Upload;
 use Data::Dumper;
 
 $VERSION = "0.1.0_2";
@@ -39,11 +40,29 @@ sub new {
     my $cfg = ref($_[0]) eq "HASH" ? $_[0] : {  @_ };
     
     my $jmx4perl = new JMX::Jmx4Perl($cfg);
+    my $upload = new OSGi::Osgish::Upload($jmx4perl);
     my $self = { 
-                j4p => $jmx4perl
+                j4p => $jmx4perl,
+                upload => $upload,
+                cfg => $cfg,
                };
     bless $self,(ref($class) || $class);
     return $self;
+}
+
+sub cfg {
+    my $self = shift;
+    my $key = shift || return $self->{cfg};
+    my $val = shift;
+    my $ret = $self->{cfg}->{$key};
+    if (defined $val) {
+        $self->{cfg}->{$key} = $val;
+    }
+    return $ret;
+}
+
+sub upload {
+    return shift->{upload};
 }
 
 sub url { 
@@ -116,11 +135,11 @@ sub stop_bundle {
 
 sub shutdown {
     my $self = shift;
-    $self->_execute($self->_mbean_name("framework"),"shutdownFramework");
+    $self->execute($self->_mbean_name("framework"),"shutdownFramework");
 }
 
 
-sub _execute {
+sub execute {
     my $self = shift;
     my $mbean = shift || die "No MBean name given";
     my $operation = shift || die "No operation given for MBean $mbean";
@@ -158,7 +177,7 @@ sub _start_stop_bundle {
     unless ($id) {
         die "Cannot $cmd bundle '$what': Not an id nor a symbolic name\n";
     }
-    $self->_execute($self->_mbean_name("framework"),"${cmd}Bundle",$id);
+    $self->execute($self->_mbean_name("framework"),"${cmd}Bundle",$id);
 }
 
 sub _mbean_name {
@@ -216,7 +235,7 @@ sub _fetch_list {
     my $self = shift;
     my ($mbean,$operation) = @_;
     my $ret = {};
-    $ret->{list} = $self->_execute($self->_mbean_name($mbean),$operation);
+    $ret->{list} = $self->execute($self->_mbean_name($mbean),$operation);
     $ret->{timestamp} = time;
     $ret->{ids} = [ map { $_->{Identifier} } values %{$ret->{list}} ];
     return $ret;
@@ -225,7 +244,7 @@ sub _fetch_list {
 sub _server_state_changed {
     my $self = shift;
     my $type = shift;
-    my $state = $self->_execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$self->{bundle}->{timestamp});
+    my $state = $self->execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$self->{bundle}->{timestamp});
     return $state eq "true" ? 1 : 0;
 }
 

@@ -22,6 +22,7 @@ public interface UploadStoreMBean {
      * Delete a certain file in the directory
      *
      * @param pFilename name to delete
+     * @return error message if any or null if everything was fine
      */
-    void deleteFile(String pFilename);
+    String deleteFile(String pFilename);
 }

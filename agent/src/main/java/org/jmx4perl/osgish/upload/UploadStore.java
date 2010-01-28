@@ -39,29 +39,32 @@ public class UploadStore implements UploadStoreMBean, MBeanRegistration {
         return ret;
     }
 
-    public void deleteFile(String pFilename) {
+    public String deleteFile(String pFilename) {
         if (pFilename == null) {
-            throw new IllegalArgumentException("No filename given");
+            return "No filename given";
         }
         if (pFilename.startsWith("/")) {
-            throw new IllegalArgumentException("Path '" + pFilename + "' must not be an absolute path");
+            return "Path " + pFilename + " must not be an absolute path";
         }
         File dir = dataDir;
+
+        // Dive into the directory
         String parts[] = pFilename.split("/");
         String last = parts[parts.length-1];
         for (int i = 0;i<parts.length - 1;i++) {
             dir = new File(dir,parts[i]);
             if (!dir.isDirectory()) {
-                throw new IllegalArgumentException("'" + dir.getPath() + "' is not a directory");
+                return dir.getPath() + " is not a directory";
             }
         }
         File file = new File(dir,last);
         if (!file.exists()) {
-            throw new IllegalArgumentException("'" + file.getPath() + "' does not exist");
+            return file.getName() + ": No such file";
         }
         if (!file.delete()) {
-            throw new IllegalArgumentException("Cannot delet file '" + file.getPath() + "'");
+            return "Could not delete file " + file.getName();
         }
+        return null;
     }
 
     public ObjectName preRegister(MBeanServer server, ObjectName name) throws Exception {

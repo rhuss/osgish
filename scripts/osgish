@@ -13,11 +13,10 @@ use Getopt::Long qw(GetOptionsFromArray);
 use JMX::Jmx4Perl::Config;
 use strict;
 use English;
-
 use Data::Dumper;
-
 use OSGi::Osgish;
-
+use POSIX qw(strftime);
+use File::Glob ':glob';
 
 =head1 SYNOPSIS
 
@@ -127,6 +126,7 @@ sub top_commands {
          %{&service_commands},
          %{&server_commands},
          %{&global_commands},
+         %{&upload_commands},
 #         "help" =>   { 
 #                      desc => "Print helpful information",
 #                      args => sub { shift->help_args($helpcats, @_); },
@@ -141,17 +141,17 @@ sub bundle_commands {
     my $cmds = { 
                 "ls" => { 
                          desc => "List bundles",
-                         proc => \&cmd_list_bundles,
+                         proc => \&cmd_bundle_list,
                          args => sub { &complete_bundles(@_,no_ids => 1) }
                         },
                 "start" => { 
                             desc => "Start a bundle",
-                            proc => \&cmd_start_bundle,
+                            proc => \&cmd_bundle_start,
                             args => sub { &complete_bundles(@_) }
                            },
                 "stop" => { 
                            desc => "Stop a bundle",
-                           proc => \&cmd_stop_bundle,
+                           proc => \&cmd_bundle_stop,
                            args => sub { &complete_bundles(@_) }
                           }
                };
@@ -174,7 +174,7 @@ sub server_commands {
     return {
             "servers" => { 
                           desc => "Show all configured servers",
-                          proc => \&cmd_show_servers
+                          proc => \&cmd_server_list
                          },
             "connect" => { 
                           desc => "Connect to a server by its URL or symbolic name",
@@ -209,18 +209,51 @@ sub service_sub_commands {
     return { 
             "ls" => { 
                      desc => "List all services",
-                     proc => \&cmd_list_services,
+                     proc => \&cmd_service_list,
                      args => sub { &complete_services(@_,no_ids => 1) }
                      
                     },
             "bls" => { 
                       desc => "List bundles",
-                      proc => \&cmd_list_bundles,
+                      proc => \&cmd_bundle_list,
                       args => sub { &complete_bundles(@_,no_ids => 1) }                      
                      },
             %{&bundle_commands(sub { return { %{&service_sub_commands},%{&global_commands}}})}
            };    
 }
+
+# Upload commands
+sub upload_commands {
+    my $parent_cmds = shift || \&top_commands;
+    my $cmds = { 
+                "ls" => { 
+                         desc => "List upload directory",
+                         proc => \&cmd_upload_list,
+                        },
+                "put" => {
+                             desc => "Upload a file",
+                             proc => \&cmd_upload_put,
+                             args => sub { &complete_files_extended(@_) }
+                            },
+                "rm" => {
+                         desc => "Remove a file",
+                         proc => \&cmd_upload_delete,
+                         args => sub { $osgi->upload->complete_files_in_upload_dir(@_) }
+                        },
+               };
+    
+    return $server ? {
+                      "upload" => { 
+                                   desc => "Upload related operations",
+                                   proc => sub { 
+                                       &cmd_set_context("upload",$cmds,$parent_cmds) 
+                                   },
+                                   cmds => $cmds                       
+                                  },
+                      "u" => { alias => "upload", exclude_from_completion => 1},
+                     } : {};
+}
+
 
 # Commands always available
 sub global_commands {
@@ -231,7 +264,7 @@ sub global_commands {
                      proc => \&cmd_last_error
                     },
          "help" => {
-                    desc => "Print helpful information",
+                    desc => "Print online help",
                     args => sub { shift->help_args(undef, @_); },
                     method => sub { shift->help_call(undef, @_); }
                    },
@@ -318,7 +351,7 @@ sub cmd_connect {
 }
 
 # Show all servers
-sub cmd_show_servers {
+sub cmd_server_list {
     for my $s (@$server_list) {
         my ($ms,$me) = &get_color("host",RESET);
         my $sep = $s->{from_config} ? "-" : "*";
@@ -353,7 +386,7 @@ sub switch_to_server {
 # =================================================================================================== 
 
 # List bundles
-sub cmd_list_bundles {
+sub cmd_bundle_list {
     print "Not connected to a server\n" and return unless $osgi;
     my ($opts,@filters) = &extract_command_args(["s!"],@_);
     my $bundles = $osgi->bundles;
@@ -396,19 +429,19 @@ sub cmd_list_bundles {
     #print Dumper($bundles);
 }
 
-sub cmd_start_bundle {
+sub cmd_bundle_start {
     my $bundle = shift;
     $osgi->start_bundle($bundle);
 }
 
-sub cmd_stop_bundle {
+sub cmd_bundle_stop {
     my $bundle = shift;
     $osgi->stop_bundle($bundle);    
 }
 
 # =========================================================================================
 
-sub cmd_list_services { 
+sub cmd_service_list { 
     print "Not connected to a server\n" and return unless $osgi;
     my $services = $osgi->services;
     my ($opts,@filters) = &extract_command_args(["u=s","b=s"],@_);
@@ -434,6 +467,80 @@ sub cmd_list_services {
     }
     &print_paged($text,$nr);
 }
+
+# =========================================================================================
+sub cmd_upload_list {
+    print "Not connected to a server\n" and return unless $osgi;
+    my $list = $osgi->upload->list;
+    #print Dumper($list);
+    my $installed = &uploaded_installed_bundles($list);
+    for my $file (sort keys %$list) {
+        my $time = $list->{$file}->{modified} / 1000;
+        my $date;
+        if (time - $time > 60*60*24*365) {
+            $date = strftime "%b %d %Y",localtime($time);
+        } else {
+            $date = strftime "%b %d %H:%M",localtime($time);
+        }
+        my ($bundle_id,$color_start,$color_end) = 
+          $installed->{$file} ? ($installed->{$file},&get_color("upload_installed",RESET)) : 
+            ("","","");
+        printf "%s%3.3s %10.10s %12.12s %s%s\n",$color_start,$bundle_id,$list->{$file}->{length},$date,$file,$color_end;
+    }
+}
+
+sub cmd_upload_put {
+    my $file = shift || die "No file given";
+    my @files = bsd_glob($file, GLOB_TILDE | GLOB_ERR);
+    for my $f (@files) {
+        if (-f $f && -s $f) {
+            $osgi->upload->upload($f,progress_bar => 1);
+            print "Uploaded $f\n";
+        } 
+    }
+    $osgi->upload->cache_update;
+}
+
+sub cmd_upload_delete {
+    my $file = shift || die "No file given"; 
+    die "Filepath must not be absolute" if $file =~ /^\//;
+    my @files;
+    my $list = $osgi->upload->list;
+    my $installed = &uploaded_installed_bundles($list);
+    if ($file =~ /\*/) {
+        # It's a glob, we need to expand it and do multiple removes
+        my $pattern = $file;
+        $pattern =~ s/\./\\./g;
+        $pattern =~ s/\*/.*/g;
+        $pattern =~ s/\?/./g;
+        @files = grep { /^$pattern$/ } sort keys %$list;
+    } else {
+        @files = ( $file );
+    }
+    for my $f (@files) {
+        if ($installed->{$f}) {
+            print "$f is still installed as bundle. Uninstall it first\n";
+            next;
+        }
+        my $error = $osgi->upload->remove($f);
+        print $error ? "rm: $error\n" : "Removed $f\n";
+    }
+    $osgi->upload->cache_update;
+}
+
+sub uploaded_installed_bundles {
+    my $list = shift;
+    my $bundles = $osgi->bundles(use_cached => 1);
+    my %locations = map { "file://" . $list->{$_}->{canonicalPath} => $_} keys %$list;
+    #print Dumper(\%locations);
+    my %installed;
+    for my $b (values %$bundles) {
+        my $file = $locations{$b->{Location}};
+        $installed{$file} = $b->{Identifier} if $file;
+    }
+    return \%installed;
+}
+
 
 # =========================================================================================
 sub cmd_last_error {
@@ -462,13 +569,13 @@ sub complete_servers {
 }
 
 sub complete_bundles {
-    return &complete_bundle_or_service(sub { $osgi->bundle_ids(use_cached =>) },
+    return &complete_bundle_or_service(sub { $osgi->bundle_ids(use_cached => 1) },
                                        sub { $osgi->bundle_symbolic_names(use_cached => 1)},
                                        @_);
 }
 
 sub complete_services {
-    return &complete_bundle_or_service(sub { $osgi->service_ids(use_cached =>) },
+    return &complete_bundle_or_service(sub { $osgi->service_ids(use_cached => 1) },
                                        sub { $osgi->service_object_classes(use_cached => 1)},
                                        @_);
 }
@@ -492,6 +599,50 @@ sub complete_bundle_or_service {
         }
     }
 
+}
+
+sub complete_files_extended {
+    my $term = shift;
+    my $cmpl = shift;
+    my $filter = undef;
+
+    $term->suppress_completion_append_character();
+
+    use File::Spec;
+    my @path = File::Spec->splitdir($cmpl->{str} || ".");
+    my $dir = File::Spec->catdir(@path[0..$#path-1]);
+    my $lookup_dir = $dir;
+    if ($dir =~ /^\~(.*)/) {
+        my $user = $1 || "";
+        $lookup_dir = glob("~$user");
+    }
+    my $file = $path[$#path];
+    $file = '' unless $cmpl->{str};
+    my $flen = length($file);
+
+    my @files = ();
+    $lookup_dir = length($lookup_dir) ? $lookup_dir : ".";
+    if (opendir(DIR, $lookup_dir)) {
+        if ($filter) {
+            @files = grep { substr($_,0,$flen) eq $file && $file =~ $filter } readdir DIR;
+        } else {
+            @files = grep { substr($_,0,$flen) eq $file } readdir DIR;
+        }
+        closedir DIR;
+        # eradicate dotfiles unless user's file begins with a dot
+        @files = grep { /^[^.]/ } @files unless $file =~ /^\./;
+        # reformat filenames to be exactly as user typed
+        my @ret = ();
+        for my $file (@files) {
+            $file .= "/" if -d $lookup_dir . "/" . $file;
+            $file = $dir eq '/' ? "/$file" : "$dir/$file" if length($dir);
+            push @ret,$file;
+        }
+        return \@ret;
+    } else {
+        $term->completemsg("Couldn't read dir: $!\n");
+        return [];
+    }
 }
 
 sub prompt {
@@ -702,7 +853,8 @@ sub get_color_theme {
             service_interface => undef,
             service_using => RED,
             prompt_context => CYAN,
-            prompt_empty => RED
+            prompt_empty => RED,
+            upload_installed => GREEN
            };
 }
 
@@ -769,3 +921,5 @@ sub filter_services {
     }
     return $rest;
 }
+
+
