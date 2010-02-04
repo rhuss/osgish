@@ -126,53 +126,131 @@ my $term = new Term::ShellUI(
 # Top-Level commands
 sub top_commands {
     return 
-        { 
-         %{&bundle_commands},
-         %{&service_commands},
-         %{&server_commands},
-         %{&global_commands},
-         %{&upload_commands},
-#         "help" =>   { 
-#                      desc => "Print helpful information",
-#                      args => sub { shift->help_args($helpcats, @_); },
-#                      method => sub { shift->help_call($helpcats, @_); } 
-#                     },
-        };
+      $server ?
+          { 
+           %{&bundle_sub_commands},
+           %{&service_commands},
+           %{&server_commands},
+           %{&global_commands},
+           %{&upload_commands},
+          } 
+          : 
+          { 
+           %{&global_commands}
+          };
 }
 
 # Commands in context "bundle"
 sub bundle_commands {
-    my $parent_cmds = shift || \&top_commands;
     my $cmds = { 
-                "ls" => { 
-                         desc => "List bundles",
-                         proc => \&cmd_bundle_list,
-                         args => sub { &complete_bundles(@_,no_ids => 1) }
-                        },
-                "start" => { 
-                            desc => "Start a bundle",
-                            proc => \&cmd_bundle_start,
-                            args => sub { &complete_bundles(@_) }
-                           },
-                "stop" => { 
-                           desc => "Stop a bundle",
-                           proc => \&cmd_bundle_stop,
-                           args => sub { &complete_bundles(@_) }
-                          }
+                %{&bundle_sub_commands},
+                #%{&service_commands}
                };
-    
-    return $server ? {
-                      "bundle" => { 
-                                   desc => "Bundles related operations",
-                                   proc => sub { 
-                                       &cmd_set_context("bundle",$cmds,$parent_cmds) 
-                                   },
-                                   cmds => $cmds                       
-                                  },
+    return  {
+             "bundle" => { 
+                          desc => "Bundles related operations",
+                          proc => sub { 
+                              &cmd_set_context("bundle",$cmds) 
+                          },
+                          cmds => $cmds
+                         },
                       "b" => { alias => "bundle", exclude_from_completion => 1},
-                     } : {};
+            };
 }
 
+sub bundle_sub_commands {
+    return { 
+            "ls" => { 
+                     desc => "List bundles",
+                     proc => \&cmd_bundle_list,
+                     args => sub { &complete_bundles(@_,no_ids => 1) }
+                    },
+            "start" => { 
+                        desc => "Start a bundle",
+                        proc => \&cmd_bundle_start,
+                        args => sub { &complete_bundles(@_) }
+                           },
+            "stop" => { 
+                       desc => "Stop a bundle",
+                       proc => \&cmd_bundle_stop,
+                       args => sub { &complete_bundles(@_) }
+                      }
+           };
+}
+
+# Commands im context "service"
+sub service_commands {
+    my $cmds = { 
+                %{&service_sub_commands},
+#                %{&bundle_commands}
+               };
+    return {
+            "service" => { 
+                          desc => "Service related operations",
+                          proc => sub { 
+                              &cmd_set_context("service",$cmds) 
+                          },
+                          cmds => $cmds                       
+                         },
+            "s" => { alias => "service", exclude_from_completion => 1},
+            "serv" => { alias => "service", exclude_from_completion => 1}
+           };
+}
+
+sub service_sub_commands {
+    return 
+        { 
+         "ls" => { 
+                  desc => "List all services",
+                  proc => \&cmd_service_list,
+                     args => sub { &complete_services(@_,no_ids => 1) }
+                  
+                 },
+         "bls" => { 
+                   desc => "List bundles",
+                   proc => \&cmd_bundle_list,
+                   args => sub { &complete_bundles(@_,no_ids => 1) }                      
+                  },
+        };    
+}
+
+# Upload commands
+sub upload_commands {
+    my $cmds = { 
+                %{&upload_sub_commands},
+                %{&bundle_commands}
+               };
+    return 
+        {
+         "upload" => { 
+                      desc => "Upload related operations",
+                      proc => sub { 
+                          &cmd_set_context("upload",$cmds);
+                      },
+                      cmds => $cmds                       
+                     },
+         "u" => { alias => "upload", exclude_from_completion => 1},
+        };
+}
+
+sub upload_sub_commands {
+    return { 
+            "ls" => { 
+                     desc => "List upload directory",
+                     proc => \&cmd_upload_list,
+                    },
+            "put" => {
+                      desc => "Upload a file",
+                      proc => \&cmd_upload_put,
+                      args => sub { &complete_files_extended(@_) }
+                     },
+                "rm" => {
+                         desc => "Remove a file",
+                         proc => \&cmd_upload_delete,
+                         args => sub { $osgi->upload->complete_files_in_upload_dir(@_) }
+                        },
+           };    
+}
 
 sub server_commands {
     return {
@@ -188,76 +266,6 @@ sub server_commands {
                          },
            };
 }
-
-# Commands im context "service"
-sub service_commands {
-    if ($server) {
-        my $cmds = &service_sub_commands;
-        return {
-           "service" => { 
-                         desc => "Service related operations",
-                         proc => sub { 
-                             &cmd_set_context("service",$cmds,\&top_commands) 
-                         },
-                         cmds => $cmds                       
-                        },
-           "s" => { alias => "service", exclude_from_completion => 1},
-           "serv" => { alias => "service", exclude_from_completion => 1}
-          };
-    } else {
-        return {};
-    }
-}
-
-sub service_sub_commands {
-    return { 
-            "ls" => { 
-                     desc => "List all services",
-                     proc => \&cmd_service_list,
-                     args => sub { &complete_services(@_,no_ids => 1) }
-                     
-                    },
-            "bls" => { 
-                      desc => "List bundles",
-                      proc => \&cmd_bundle_list,
-                      args => sub { &complete_bundles(@_,no_ids => 1) }                      
-                     },
-            %{&bundle_commands(sub { return { %{&service_sub_commands},%{&global_commands}}})}
-           };    
-}
-
-# Upload commands
-sub upload_commands {
-    my $parent_cmds = shift || \&top_commands;
-    my $cmds = { 
-                "ls" => { 
-                         desc => "List upload directory",
-                         proc => \&cmd_upload_list,
-                        },
-                "put" => {
-                             desc => "Upload a file",
-                             proc => \&cmd_upload_put,
-                             args => sub { &complete_files_extended(@_) }
-                            },
-                "rm" => {
-                         desc => "Remove a file",
-                         proc => \&cmd_upload_delete,
-                         args => sub { $osgi->upload->complete_files_in_upload_dir(@_) }
-                        },
-               };
-    
-    return $server ? {
-                      "upload" => { 
-                                   desc => "Upload related operations",
-                                   proc => sub { 
-                                       &cmd_set_context("upload",$cmds,$parent_cmds) 
-                                   },
-                                   cmds => $cmds                       
-                                  },
-                      "u" => { alias => "upload", exclude_from_completion => 1},
-                     } : {};
-}
-
 
 # Commands always available
 sub global_commands {
@@ -294,39 +302,53 @@ sub cmd_set_context {
     my $context = shift;
     # Sub-commands within the context
     my $sub_cmds = shift;
-    # Parent commands of this sub context
-    my $parent_cmds = shift;
-    
-    push @contexts,$context;
-    
+    # Don't update context
+    my $skip_context = shift;
+    push @contexts,{ name => $context, cmds => $sub_cmds } unless $skip_context;
+    #print Dumper(\@contexts);
+
     # Set sub-commands
     $term->commands
       ({
         %$sub_cmds,
         %{&global_commands},
-        $parent_cmds ? 
-        (".." => {
-                 desc => "Go up one level",
-                 proc => 
-                  sub { 
-                      pop @contexts;
-                      my $cmds = &{$parent_cmds};                      
-                      if (@contexts > 1) {
-                          # We can still go up ==> add ".." and "/"
-                          #$cmds->{".."} => { };
-                          $cmds->{"/"} => { proc => sub { &reset_context() }};
+        %{&navigation_commands},
+       }
+      );    
+}
+
+sub navigation_commands {
+    if (@contexts > 0) {
+        return 
+            {".." => {
+                      desc => "Go up one level",
+                      proc => 
+                      sub { 
+                          my $parent = pop @contexts;
+                          if (@contexts > 0) {
+                              $term->commands
+                                ({
+                                  %{$contexts[$#contexts]->{cmds}},
+                                  %{&global_commands},
+                                  %{&navigation_commands},
+                                 }
+                                );    
+                          } else { 
+                              $term->commands(&top_commands);
+                          }
                       }
-                      $term->commands($cmds);
-                  }
-                 },
-         "/" => { 
-                 desc => "Go to the top level",
-                 proc => 
-                 sub { 
-                     &reset_context();
-                 }
-                }) : ()
-       });    
+                     },
+             "/" => { 
+                     desc => "Go to the top level",
+                     proc => 
+                     sub { 
+                         &reset_context();
+                     }
+                    }
+            };
+    } else {
+        return {};
+    }
 }
 
 # Connect to a server
@@ -665,13 +687,14 @@ sub complete_files_extended {
 
 sub prompt {
     my $term = shift;
-    my ($yellow,$cyan,$red,$reset) = $no_color_prompt ? ("","","","") : &get_color("host","prompt_context","prompt_empty",RESET,{escape => 1});
+    my ($yellow,$cyan,$red,$reset) = 
+      $no_color_prompt ? ("","","","") : &get_color("host","prompt_context","prompt_empty",RESET,{escape => 1});
     my $p = "[";
     $p .= $server ? $yellow . $server : $red . "osgish";
     $p .= $reset;
     $p .= ":" . $cyan if @contexts;
     for my $i (0 .. $#contexts) {
-        $p .= $contexts[$i];
+        $p .= $contexts[$i]->{name};
         $p .= $i < $#contexts ? "/" : $reset;
     }
     $p .= "] : ";
