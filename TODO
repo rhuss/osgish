@@ -5,3 +5,14 @@
    the jar
 08 '--no-color' option
 
+
+
+=========================
+
+Top-Level Verzeichnis: "bundle",
+danach nur ein level tief "service", "upload", ....
+in service "bls" zur Anzeige von bundles
+
+@context --> $context;
+
+rekursiven Stoff aufraeumen.

@@ -65,6 +65,7 @@ public class UploadServlet extends HttpServlet {
                             log.log(LogService.LOG_INFO,"Uploaded " + dest.getName() +
                                     " (size: " + dest.length() + ")");
                         }
+                        // TODO: Return internal location/url of this bundle
                     } catch (IOException exp) {
                         throw new ServletException("Cannot copy uploaded file to " +
                                 dest.getAbsolutePath() + ": " + exp,exp);

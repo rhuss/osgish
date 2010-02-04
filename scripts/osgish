@@ -34,6 +34,7 @@ use File::Glob ':glob';
    --proxy-user <user>     Authentication information for a proxy
    --proxy-password <pwd>
    --config                Path to an optional configuration file (default: ~/.osgish)
+   --color [yes|no]        Color option (default: yes)
 
 =head1 DESCRIPTION
 
@@ -77,6 +78,7 @@ my $result = GetOptions(\%opts,
                         "proxy-user=s","proxy-password=s",
                         "config=s",
                         "version!",
+                        "color=s",
                         "help|h!" => sub { &Getopt::Long::HelpMessage() }
                        );
 
@@ -85,7 +87,9 @@ if ($opts{version}) {
     exit(0);
 }
 
-my $use_color = 1;
+my $use_color = $opts{'color'} || 1;
+$use_color = 0 if $use_color =~ /^(no|never|false)$/i;
+
 my $no_color_prompt = 0;        # Don't color for certain readline imp.
 my $config = &get_config($opts{config});
 my $jmx_config = new JMX::Jmx4Perl::Config($config);
@@ -95,6 +99,7 @@ my $j4p_args = &get_j4p_args(\%opts);
 
 # Current connection to OSGi agent
 my $osgi;
+my $last_error;
 
 # Current server and osgi object
 my ($server,$osgi);
@@ -170,7 +175,6 @@ sub bundle_commands {
 
 
 sub server_commands {
-
     return {
             "servers" => { 
                           desc => "Show all configured servers",
@@ -306,7 +310,13 @@ sub cmd_set_context {
                  proc => 
                   sub { 
                       pop @contexts;
-                      $term->commands(&{$parent_cmds});
+                      my $cmds = &{$parent_cmds};                      
+                      if (@contexts > 1) {
+                          # We can still go up ==> add ".." and "/"
+                          #$cmds->{".."} => { };
+                          $cmds->{"/"} => { proc => sub { &reset_context() }};
+                      }
+                      $term->commands($cmds);
                   }
                  },
          "/" => { 
@@ -338,12 +348,14 @@ sub cmd_connect {
     my ($old_server,$old_osgi) = ($server,$osgi);
     eval { 
         &switch_to_server($s->{name});
+        $last_error = undef;
     };
     if ($@) {
+        $last_error = $osgi->last_error if $osgi->last_error;
         $server = $old_server;
         $osgi = $old_osgi;
         die $@;
-    } 
+    }
     &reset_context;
     $term->commands(&top_commands);
     my ($yellow,$reset) = &get_color("host",RESET);
@@ -399,7 +411,7 @@ sub cmd_bundle_list {
     
     if (@$filtered_bundles == 1) {
         # Print single info for bundle
-        print "TODO\n";
+        print Dumper($filtered_bundles->[0]);
     } else {
         for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @$filtered_bundles) {
             my $id = $b->{Identifier};
@@ -449,7 +461,7 @@ sub cmd_service_list {
     my $filtered_services = &filter_services($services,$opts,@filters);
     return unless @$filtered_services;
     
-    my $text = sprintf("%4.4s   %-60.60s %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
+    my $text = sprintf("%4.4s  %-62.62s %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
     $text .= "-" x 74 . "+" . "-" x 24 . "\n";
     my $nr = 0;
     for my $s (sort { $a->{Identifier} <=> $b->{Identifier} } @{$filtered_services}) {
@@ -458,14 +470,20 @@ sub cmd_service_list {
         my $using_bundles = $s->{UsingBundles} || [];
         my $using = $using_bundles ? join (", ",sort { $a <=> $b } @$using_bundles) : "";
         my $bundle_id = $s->{BundleIdentifier};
-        my $classes = $s->{objectClass};        
-        $text .= sprintf "%s%4d%s   %s%-60.60s%s  %4d | %s%s%s\n",$c_id,$id,$r,$c_interf,$classes->[0],$r,$bundle_id,$c_using,$using,$r;
+        my $classes = $s->{objectClass};
+        $text .= sprintf "%s%4d%s  %s%-65.65s%s %s%3d%s | %s\n",$c_id,$id,$r,$c_interf,&trim_string($classes->[0],65),$r,$c_using,$bundle_id,$r,$using;
         for my $i (1 .. $#$classes) {
-            $text .= sprintf "       %s%-66.66s%s |\n",$c_interf,$classes->[$i],$r;
+            $text .= sprintf "      %s%-69.69s%s |\n",$c_interf,&trim_string($classes->[$i],69),$r;
         }
         $nr++;
     }
     &print_paged($text,$nr);
+}
+
+sub trim_string {
+    my $string = shift;
+    my $max = shift;
+    return length($string) > $max ? substr($string,0,$max-3) . "..." : $string;
 }
 
 # =========================================================================================
@@ -544,12 +562,12 @@ sub uploaded_installed_bundles {
 
 # =========================================================================================
 sub cmd_last_error {
-    if ($osgi && $osgi->last_error) { 
-        my $txt = $osgi->last_error;
+    if ( ($osgi && $osgi->last_error) || $last_error) { 
+        my $txt = $osgi && $osgi->last_error ? $osgi->last_error : $last_error;
         chop $txt;
         print "$txt\n";
     } else {
-        print "No errors";
+        print "No errors\n";
     }
 }
 

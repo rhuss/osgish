@@ -151,9 +151,9 @@ sub execute {
     my $response = $j4p->request($request);
     if ($response->is_error) {
         #print Dumper($response);
-        die "No osgish-agent running [Not found: $mbean,$operation].\n"
-          if $response->status == 404;
-        if ($response->status >= 500) {
+        if ($response->status == 404) {
+            die "No osgish-agent running [Not found: $mbean,$operation].\n"
+        } else {
             $self->{last_error} = $response->{error} . 
               ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
             die "Connection refused\n" if $response->{error} =~ /Connection\s+refused/i;

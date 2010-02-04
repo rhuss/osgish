@@ -1,3 +1,5 @@
+  * Upload bundles to server and manage it
+
 0.1.0_2
   * Tuned context sensitive completions, added options to 'ls' of
     services/bundles ('-s' show symbolic names, '-u <bid>' only
