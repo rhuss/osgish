@@ -173,7 +173,7 @@ sub _start_stop_bundle {
     my $cmd = shift;
     my $what = shift || die "No id or name given\n";
     
-    my $id = $what =~ /^\d+$/ ? $what : $self->symbolic_names->{$what};
+    my $id = $what =~ /^\d+$/ ? $what : $self->{bundle}->{symbolic_names}->{$what};
     unless ($id) {
         die "Cannot $cmd bundle '$what': Not an id nor a symbolic name\n";
     }

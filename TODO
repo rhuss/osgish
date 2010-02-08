@@ -16,3 +16,6 @@ in service "bls" zur Anzeige von bundles
 @context --> $context;
 
 rekursiven Stoff aufraeumen.
+
+
+- complete_in_upload_dir nach Completion moven
