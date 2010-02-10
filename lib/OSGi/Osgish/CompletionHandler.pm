@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-package OSGi::Osgish::Completion;
+package OSGi::Osgish::CompletionHandler;
 
 use strict;
 use File::Spec;

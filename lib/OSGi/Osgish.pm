@@ -5,7 +5,7 @@ package OSGi::Osgish;
 use strict;
 use Term::ANSIColor qw(:constants);
 use OSGi::Osgish::ServerHandler;
-use OSGi::Osgish::Completion;
+use OSGi::Osgish::CompletionHandler;
 use OSGi::Osgish::CommandHandler;
 use Data::Dumper;
 
@@ -107,7 +107,7 @@ sub color_theme {
 
 sub _init {
     my $self = shift;
-    $self->{complete} = new OSGi::Osgish::Completion($self);
+    $self->{complete} = new OSGi::Osgish::CompletionHandler($self);
     $self->{servers} = new OSGi::Osgish::ServerHandler($self);
     $self->{commands} = new OSGi::Osgish::CommandHandler($self);
     $self->{commands}->register_commands($self);

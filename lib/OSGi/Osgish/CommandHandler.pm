@@ -76,7 +76,6 @@ sub run {
     $t->run;
 }
 
-
 sub prompt {
     my $self = shift;
     my $osgish = $self->{osgish};
