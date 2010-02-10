@@ -4,6 +4,7 @@ package OSGi::Osgish;
 
 use strict;
 use Term::ANSIColor qw(:constants);
+use OSGi::Osgish::Shell;
 use OSGi::Osgish::ServerHandler;
 use OSGi::Osgish::CompletionHandler;
 use OSGi::Osgish::CommandHandler;
@@ -48,7 +49,12 @@ is no connected server, this methods returns C<undef>
 =cut 
 
 sub agent {
-    return shift->_get_set("agent",@_);
+    my ($self,$val) = @_;
+    my $ret = $self->{agent};
+    if ($#_ > 0) {
+        $self->{agent} = $val;
+    }
+    return $ret;
 }
 
 sub complete {
@@ -67,31 +73,13 @@ sub server {
     return shift->{servers}->{server};
 }
 
+sub color { 
+    return shift->{shell}->color(@_);
+}
+
 sub run {
     my $self = shift;
-    $self->{commands}->run;
-}
-
-sub use_color {
-    my $self = shift;
-    my $use_color = $self->{opts}->{color} || 1;
-    $use_color = 0 if $use_color =~ /^(no|never|false)$/i;
-    return $use_color;
-}
-
-sub color { 
-    my $self = shift;
-    my @colors = @_;
-    my $args = ref($colors[$#colors]) eq "HASH" ? pop @colors : {};
-    if ($self->use_color) {
-        if ($args->{escape}) {
-            return map { "\01" . $self->_resolve_color($_) . "\02" } @colors;
-        } else {
-            return map { $self->_resolve_color($_) } @colors;
-        }
-    } else {
-        return map { "" } @colors;
-    }
+    $self->{shell}->run;
 }
 
 sub last_error {
@@ -101,72 +89,26 @@ sub last_error {
     return $self->{last_error};
 }
 
-sub color_theme {
-    return shift->_get_set("color_theme",@_);
-}
-
 sub _init {
     my $self = shift;
     $self->{complete} = new OSGi::Osgish::CompletionHandler($self);
     $self->{servers} = new OSGi::Osgish::ServerHandler($self);
-    $self->{commands} = new OSGi::Osgish::CommandHandler($self);
+    $self->{shell} = $self->_create_shell;
+    $self->{commands} = new OSGi::Osgish::CommandHandler($self,$self->{shell});
     $self->{commands}->register_commands($self);
-
-    # For now, we return a fixed theme:
-    $self->{color_theme} = { 
-                            host => YELLOW,
-                            bundle_active => GREEN,
-                            bundle_inactive => RED,
-                            service_id => GREEN,
-                            service_interface => undef,
-                            service_using => RED,
-                            prompt_context => CYAN,
-                            prompt_empty => RED,
-                            upload_installed => GREEN,
-                            upload_uninstalled => RED
-                           };
 }
 
-sub _init_term {
+sub _create_shell {
     my $self = shift;
-    # Force pipe, quit if less than a screen-full.
-    my @args = ('-f','-E','-X');
-    if ($self->use_color) {
-        # Raw characters
-        push @args,'-r';
-    }
-    if ($ENV{LESS}) {
-        my $l = "";
-        for my $a (@args) {
-            $l .= $a . " " unless $ENV{LESS} =~ /$a/;
-        }
-        if (length($l)) {
-            chop $l;
-            $ENV{LESS} .= " " . $l;
-        }
+    my $use_color;
+    if (exists $self->{args}->{color}) {
+        $use_color = $self->{args}->{color};
+    } elsif (exists $self->{config}->{use_color}) {
+        $use_color = $self->{args}->{color};
     } else {
-        $ENV{LESS} = join " ",@args;
+        $use_color = 1;
     }
-}
-
-sub _get_set {
-    my ($self,$key,$val) = @_;
-    my $ret = $self->{$key};
-    if ($#_ > 1) {
-        $self->{$key} = $val;
-    }
-    return $ret;
-}
-
-sub _resolve_color {
-    my $self = shift;
-    my $c = shift;
-    my $color = $self->{color_theme}->{$c};
-    if (exists($self->{color_theme}->{$c})) {
-        return defined($color) ? $color : "";
-    } else {
-        return $c;
-    }
+    return new OSGi::Osgish::Shell(use_color => $use_color);
 }
 
 

@@ -85,10 +85,10 @@ if ($opts{version}) {
 my $jmx_config = new JMX::Jmx4Perl::Config(&get_config($opts{config}));
 
 # Create global context object
-my $context = new OSGi::Osgish(config => $jmx_config,args => \%opts);
+my $osgish = new OSGi::Osgish(config => $jmx_config,args => \%opts);
 
 # Let the shell run
-$context->run;
+$osgish->run;
 
 sub get_config {
     my $file = shift || $ENV{HOME} . "/.osgish";
