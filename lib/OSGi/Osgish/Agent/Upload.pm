@@ -2,7 +2,7 @@
 
 =head1 NAME 
 
-OSGi::Osgish::Upload - Upload a bundle to the osgish upload directory
+OSGi::Osgish::Upload - Upload a bundle to the agent upload directory
 
 =head1 SYNOPSIS
 
@@ -10,7 +10,7 @@ OSGi::Osgish::Upload - Upload a bundle to the osgish upload directory
 
 =cut
 
-package OSGi::Osgish::Upload;
+package OSGi::Osgish::Agent::Upload;
 
 use strict;
 use warnings;
@@ -32,12 +32,12 @@ BEGIN {
 
 sub new { 
     my $class = shift;
-    my $osgish = shift || die "No OSGi::Osgish object given";
+    my $agent = shift || die "No OSGi::Osgish object given";
     my $ua = new JMX::Jmx4Perl::Agent::UserAgent();
-    $ua->jjagent_config($osgish->cfg());
+    $ua->jjagent_config($agent->cfg());
     my $self = { 
-                url => $osgish->cfg('url') . "-upload",
-                osgish => $osgish,
+                url => $agent->cfg('url') . "-upload",
+                agent => $agent,
                 ua => $ua
                };
     bless $self,(ref($class) || $class);
@@ -46,8 +46,8 @@ sub new {
 
 sub list {
     my $self = shift;
-    my $osgish = $self->{osgish};
-    $self->{list} = $osgish->execute($UPLOAD_SERVICE_NAME,"listUploadDirectory");    
+    my $agent = $self->{agent};
+    $self->{list} = $agent->execute($UPLOAD_SERVICE_NAME,"listUploadDirectory");    
     return $self->{list};
 }
 
@@ -59,8 +59,8 @@ sub cache_update {
 sub remove {
     my $self = shift;
     my $file = shift || die "No file given\n";
-    my $osgish = $self->{osgish};
-    return $osgish->execute($UPLOAD_SERVICE_NAME,"deleteFile",$file);
+    my $agent = $self->{agent};
+    return $agent->execute($UPLOAD_SERVICE_NAME,"deleteFile",$file);
 }
 
 sub upload { 

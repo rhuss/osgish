@@ -2,17 +2,17 @@ package OSGi::Osgish::ServerHandler;
 
 use strict;
 use Term::ANSIColor qw(:constants);
-use OSGi::Osgish;
+use OSGi::Osgish::Agent;
 use Data::Dumper;
 
 sub new { 
     my $class = shift;
-    my $context = shift || die "No context given";
+    my $osgish = shift || die "No osgish object given";
     my $self = {
-                context => $context
+                osgish => $osgish
                };
     bless $self,(ref($class) || $class);
-    my $server = $self->_init_server_list($context->{config},$context->{args});
+    my $server = $self->_init_server_list($osgish->{config},$osgish->{args});
     $self->connect_to_server($server) if $server;
     return $self;
 }
@@ -35,23 +35,23 @@ sub connect_to_server {
         $self->{server_map}->{$name} = $entry;
         $s = $entry;
     }
-    my $ctx = $self->{context};
-    my ($old_server,$old_osgi) = ($self->server,$ctx->osgish);
+    my $osgish = $self->{osgish};
+    my ($old_server,$old_agent) = ($self->server,$osgish->agent);
     eval { 
-        my $osgi = $self->_create_osgi($server) || die "Unknown $server (not an alias nor a proper URL).\n";;
-        $osgi->init();
-        $ctx->osgish($osgi);
+        my $agent = $self->_create_agent($server) || die "Unknown $server (not an alias nor a proper URL).\n";;
+        $agent->init();
+        $osgish->agent($agent);
         $self->{server} = $server;
-        $ctx->{last_error} = undef;
+        $osgish->{last_error} = undef;
     };
     if ($@) {
-        if ($ctx->osgish && $ctx->osgish->last_error) {
-            $ctx->{last_error} = $ctx->osgish->last_error;
+        if ($osgish->agent && $osgish->agent->last_error) {
+            $osgish->{last_error} = $osgish->agent->last_error;
         } else {
-            $ctx->{last_error} = $@;
+            $osgish->{last_error} = $@;
         }
         $self->{server} = $old_server;
-        $ctx->osgish($old_osgi);
+        $osgish->agent($old_agent);
         die $@;
     }   
 }
@@ -109,20 +109,20 @@ sub _prepare_server_name {
     }
 }
 
-sub _create_osgi {
+sub _create_agent {
     my $self = shift;
     my $server = shift;
     return undef unless $server;
     # TODO: j4p_args, jmx_config;
-    my $ctx = $self->{context};
-    my $j4p_args = $self->_j4p_args($ctx->{args} || {});
-    my $jmx_config = $ctx->{config} || {};
+    my $osgish = $self->{osgish};
+    my $j4p_args = $self->_j4p_args($osgish->{args} || {});
+    my $jmx_config = $osgish->{config} || {};
     my $sc = $self->{server_map}->{$server};
     return undef unless $sc;
     if ($sc->{from_config}) {
-        return new OSGi::Osgish({ %$j4p_args, server => $server, config => $jmx_config});
+        return new OSGi::Osgish::Agent({ %$j4p_args, server => $server, config => $jmx_config});
     } else {
-        return new OSGi::Osgish({ %$j4p_args, url => $sc->{url}});
+        return new OSGi::Osgish::Agent({ %$j4p_args, url => $sc->{url}});
     }
 }
 

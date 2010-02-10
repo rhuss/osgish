@@ -12,7 +12,7 @@ sub name { "global" }
 
 sub global_commands {
     my $self = shift;
-    my $osgi = $self->osgish;
+    my $osgi = $self->agent;
     
     return 
         {
@@ -43,19 +43,19 @@ sub global_commands {
 sub cmd_shutdown {
     my $self = shift;
     return sub {
-        my $ctx = $self->ctx;
-        my $osgi = $ctx->osgish;
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
         unless ($osgi) {
             print "Not connected to a server\n";
             return;
         }
-        my ($yellow,$reset) = $ctx->color("host",RESET);
-        my $server = $ctx->server;
+        my ($yellow,$reset) = $osgish->color("host",RESET);
+        my $server = $osgish->server;
         my $answer = &choose("Really shutdown " . $yellow . $server . $reset . " ?","yes","no");
         if ($answer eq "yes") {
             $osgi->shutdown;
-            $ctx->osgish(undef);
-            $ctx->commands->reset_stack;
+            $osgish->agent(undef);
+            $osgish->commands->reset_stack;
         } else {
             print "Shutdown of ". $yellow . $server . $reset . " cancelled\n";
         }
@@ -66,8 +66,8 @@ sub cmd_shutdown {
 sub cmd_last_error {
     my $self = shift;
     return sub {
-        my $osgi = $self->ctx->osgish;
-        my $txt = $self->ctx->last_error;
+        my $osgi = $self->osgish->agent;
+        my $txt = $self->osgish->last_error;
         if ($txt) { 
             chomp $txt;
             print "$txt\n";

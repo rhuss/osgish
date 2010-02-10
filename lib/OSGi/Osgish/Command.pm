@@ -9,10 +9,10 @@ use Getopt::Long qw(GetOptionsFromArray);
 
 sub new { 
     my $class = shift;
-    my $context = shift;
+    my $osgish = shift;
     my $self = ref($_[0]) eq "HASH" ? $_[0] : {  @_ };
     bless $self,(ref($class) || $class);
-    $self->ctx($context);
+    $self->osgish($osgish);
     return $self;
 }
 
@@ -24,21 +24,21 @@ sub top_commands {
     return undef;
 }
 
-sub ctx {
+sub osgish {
     my ($self,$val) = @_;
-    my $ret = $self->{context};
+    my $ret = $self->{osgish};
     if ($#_ > 0) {
-        $self->{context} = $val;
+        $self->{osgish} = $val;
     }
     return $ret;
 }
 
 sub complete {
-    return shift->{context}->complete;
+    return shift->{osgish}->complete;
 }
 
-sub osgish {
-    return shift->{context}->osgish;
+sub agent {
+    return shift->{osgish}->agent;
 }
 
 # For a command, extract args and options

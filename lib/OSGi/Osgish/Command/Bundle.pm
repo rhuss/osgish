@@ -13,7 +13,7 @@ sub name { "bundle" }
 
 sub top_commands {
     my $self = shift;
-    return $self->osgish ? $self->sub_commands : {};
+    return $self->agent ? $self->sub_commands : {};
 }
 
 # Commands in context "bundle"
@@ -24,7 +24,7 @@ sub commands {
              "bundle" => { 
                           desc => "Bundles related operations",
                           proc => sub { 
-                              $self->ctx->commands->update_stack("bundle",$cmds) 
+                              $self->osgish->commands->update_stack("bundle",$cmds) 
                           },
                           cmds => $cmds
                          },
@@ -60,8 +60,8 @@ sub cmd_bundle_list {
     my $self = shift; 
     
     return sub {
-        my $ctx = $self->ctx;
-        my $osgi = $ctx->osgish;
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
         my ($opts,@filters) = $self->extract_command_args(["s!"],@_);
         my $bundles = $osgi->bundles;
@@ -78,7 +78,7 @@ sub cmd_bundle_list {
         } else {
             for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @$filtered_bundles) {
                 my $id = $b->{Identifier};
-                my ($green,$red,$reset) = $ctx->color("bundle_active","bundle_inactive",RESET);
+                my ($green,$red,$reset) = $osgish->color("bundle_active","bundle_inactive",RESET);
                 my $state = lc $b->{State};
                 my $color = "";
                 $color = $red if $state eq "installed";
@@ -109,7 +109,7 @@ sub cmd_bundle_start {
     my $self = shift;
     return sub { 
         my $bundle = shift;
-        $self->osgish->start_bundle($bundle);
+        $self->agent->start_bundle($bundle);
     }
 }
 
@@ -117,7 +117,7 @@ sub cmd_bundle_stop {
     my $self = shift;
     return sub { 
         my $bundle = shift;
-        $self->osgish->stop_bundle($bundle);
+        $self->agent->stop_bundle($bundle);
     }
 }
 

@@ -7,9 +7,9 @@ use File::Spec;
 
 sub new { 
     my $class = shift;
-    my $context = shift || die "No context given";
+    my $osgish = shift || die "No osgish object given";
     my $self = {
-                context => $context
+                osgish => $osgish
                };
     bless $self,(ref($class) || $class);
     return $self;
@@ -17,29 +17,29 @@ sub new {
 
 sub bundles {
     my $self = shift;
-    my $ctx = $self->{context};
+    my $osgish = $self->{osgish};
     
-    return $self->_bundle_or_service(sub { $ctx->osgish->bundle_ids(use_cached => 1) },
-                                     sub { $ctx->osgish->bundle_symbolic_names(use_cached => 1)},
+    return $self->_bundle_or_service(sub { $osgish->agent->bundle_ids(use_cached => 1) },
+                                     sub { $osgish->agent->bundle_symbolic_names(use_cached => 1)},
                                      @_);
 }
 
 sub services {
     my $self = shift;
-    my $ctx = $self->{context};
-    return $self->_bundle_or_service(sub { $ctx->osgish->service_ids(use_cached => 1) },
-                                     sub { $ctx->osgish->service_object_classes(use_cached => 1)},
+    my $osgish = $self->{osgish};
+    return $self->_bundle_or_service(sub { $osgish->agent->service_ids(use_cached => 1) },
+                                     sub { $osgish->agent->service_object_classes(use_cached => 1)},
                                      @_);
 }
 
 sub _bundle_or_service {
     my $self = shift;
-    my $ctx = $self->{context};
+    my $osgish = $self->{osgish};
     my ($ids_sub,$names_sub,@rest) = @_;
     my $args = @rest ? { @rest } : {};
     return sub { 
         my ($term,$cmpl) = @_;
-        return [] unless $ctx->osgish;
+        return [] unless $osgish->agent;
         my $str = $cmpl->{str} || "";
         my $len = length($str);
         if (!$args->{no_ids} && $str =~ /^\d+$/) { 
@@ -107,8 +107,8 @@ sub servers {
     my $self = shift;
     return sub {
         my ($term,$cmpl) = @_;
-        my $context = $self->{context};
-        my $server_list = $context->servers->list;
+        my $osgish = $self->{osgish};
+        my $server_list = $osgish->servers->list;
         return [] unless @$server_list;
         my $str = $cmpl->{str} || "";
         my $len = length($str);

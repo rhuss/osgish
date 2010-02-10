@@ -32,11 +32,11 @@ sub cmd_connect {
     return sub {
         my $arg = shift;
         my $name = shift;
-        my $ctx = $self->ctx;
-        $ctx->servers->connect_to_server($arg,$name);
-        $ctx->commands->reset_stack;
-        my ($yellow,$reset) = $ctx->color("host",RESET);
-        print "Connected to " . $yellow . $ctx->server . $reset .  " (" . $ctx->osgish->url . ")\n";
+        my $osgish = $self->osgish;
+        $osgish->servers->connect_to_server($arg,$name);
+        $osgish->commands->reset_stack;
+        my ($yellow,$reset) = $osgish->color("host",RESET);
+        print "Connected to " . $yellow . $osgish->server . $reset .  " (" . $osgish->agent->url . ")\n";
     }
 }
 
@@ -44,10 +44,10 @@ sub cmd_connect {
 sub cmd_server_list {
     my $self = shift;
     return sub {
-        my $ctx = $self->ctx;
-        my $server_list = $ctx->servers->list;
+        my $osgish = $self->osgish;
+        my $server_list = $osgish->servers->list;
         for my $s (@$server_list) {
-            my ($ms,$me) = $ctx->color("host",RESET);
+            my ($ms,$me) = $osgish->color("host",RESET);
             my $sep = $s->{from_config} ? "-" : "*";
             printf " " . $ms . '%30.30s' . $me . ' %s %s' . "\n",$s->{name},$sep,$s->{url};
         }

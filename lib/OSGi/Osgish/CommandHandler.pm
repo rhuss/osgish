@@ -4,19 +4,20 @@ package OSGi::Osgish::CommandHandler;
 
 use strict;
 use Term::ANSIColor qw(:constants);
+use Term::ShellUI;
 use Data::Dumper;
 
 sub new { 
     my $class = shift;
-    my $ctx = shift || "No context given";    
+    my $osgish = shift || "No osgish object given";    
     my $self = {
-                context => $ctx
+                osgish => $osgish
                };
     $self->{stack} = [];
     bless $self,(ref($class) || $class);
     my $term = new Term::ShellUI(
                                  commands => sub { $self->top_commands },
-                                 history_file => "~/.osgish_history",
+                                 history_file => "~/.agent_history",
                                  prompt => $self->prompt
                                 );
     $self->{term} = $term;
@@ -78,15 +79,15 @@ sub run {
 
 sub prompt {
     my $self = shift;
-    my $ctx = $self->{context};
+    my $osgish = $self->{osgish};
     return sub {
         my $term = shift;
         my $stack = $self->{stack};
-        my $osgi = $ctx->osgish;
+        my $osgi = $osgish->agent;
         my ($yellow,$cyan,$red,$reset) = 
-          $self->{no_color_prompt} ? ("","","","") : $ctx->color("host","prompt_context","prompt_empty",RESET,{escape => 1});
+          $self->{no_color_prompt} ? ("","","","") : $osgish->color("host","prompt_context","prompt_empty",RESET,{escape => 1});
         my $p = "[";
-        $p .= $osgi ? $yellow . $ctx->server : $red . "osgish";
+        $p .= $osgi ? $yellow . $osgish->server : $red . "osgish";
         $p .= $reset;
         $p .= ":" . $cyan if @$stack;
         for my $i (0 .. $#{$stack}) {

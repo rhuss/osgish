@@ -12,7 +12,7 @@ sub name { "service" }
 
 sub top_commands {
     my $self = shift;
-    return $self->osgish ? $self->commands : {};
+    return $self->agent ? $self->commands : {};
 }
 
 # Commands in context "service"
@@ -23,7 +23,7 @@ sub commands {
             "service" => { 
                           desc => "Service related operations",
                           proc => sub { 
-                              $self->ctx->commands->update_stack("service",$cmds) 
+                              $self->osgish->commands->update_stack("service",$cmds) 
                           },
                           cmds => $cmds                       
                          },
@@ -55,8 +55,8 @@ sub sub_commands {
 sub cmd_service_list { 
     my $self = shift;
     return sub {
-        my $ctx = $self->ctx;
-        my $osgi = $ctx->osgish;
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
         my $services = $osgi->services;
         my ($opts,@filters) = $self->extract_command_args(["u=s","b=s"],@_);
@@ -69,7 +69,7 @@ sub cmd_service_list {
         my $nr = 0;
         for my $s (sort { $a->{Identifier} <=> $b->{Identifier} } @{$filtered_services}) {
             my $id = $s->{Identifier};
-            my ($c_id,$c_interf,$c_using,$r) = $ctx->color("service_id","service_interface","service_using",RESET);
+            my ($c_id,$c_interf,$c_using,$r) = $osgish->color("service_id","service_interface","service_using",RESET);
             my $using_bundles = $s->{UsingBundles} || [];
             my $using = $using_bundles ? join (", ",sort { $a <=> $b } @$using_bundles) : "";
             my $bundle_id = $s->{BundleIdentifier};

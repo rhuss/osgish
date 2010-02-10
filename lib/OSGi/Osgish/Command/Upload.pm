@@ -12,7 +12,7 @@ sub name { "upload" }
 
 sub top_commands {
     my $self = shift;
-    return $self->osgish ? $self->commands : {};
+    return $self->agent ? $self->commands : {};
 }
 
 sub commands {
@@ -23,7 +23,7 @@ sub commands {
          "upload" => { 
                       desc => "Upload related operations",
                       proc => sub { 
-                          $self->ctx->commands->update_stack("upload",$cmds)
+                          $self->osgish->commands->update_stack("upload",$cmds)
                       },
                       cmds => $cmds                       
                      },
@@ -46,7 +46,7 @@ sub sub_commands {
             "rm" => {
                      desc => "Remove a file",
                      proc => $self->cmd_upload_delete,
-                     args => sub { $self->osgish->upload->complete_files_in_upload_dir(@_) }
+                     args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
                     },
            };
 }
@@ -55,8 +55,8 @@ sub sub_commands {
 sub cmd_upload_list {
     my $self = shift;
     return sub {
-        my $ctx = $self->ctx;
-        my $osgi = $ctx->osgish;
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
         my $list = $osgi->upload->list;
         #print Dumper($list);
@@ -66,11 +66,11 @@ sub cmd_upload_list {
             my $date = $self->format_date($time);
             if ($installed->{$file}) {
                 my ($bundle_id,$color_start,$color_end) = 
-                  ($installed->{$file},$ctx->color("upload_installed",RESET));
+                  ($installed->{$file},$osgish->color("upload_installed",RESET));
                 printf "%s%3.3s %10.10s %12.12s %s%s\n",$color_start,$bundle_id,$list->{$file}->{length},$date,$file,$color_end;
             } else {
                 my ($color_start,$color_end) = 
-                  ($ctx->color("upload_uninstalled",RESET));
+                  ($osgish->color("upload_uninstalled",RESET));
                 printf "    %10.10s %12.12s %s%s%s\n",$list->{$file}->{length},$date,$color_start,$file,$color_end;
             }
         }
@@ -81,7 +81,7 @@ sub cmd_upload_put {
     my $self = shift;
     return sub {
         my $file = shift || die "No file given";
-        my $osgi = $self->osgish;
+        my $osgi = $self->agent;
         my @files = bsd_glob($file, GLOB_TILDE | GLOB_ERR);
         for my $f (@files) {
             if (-f $f && -s $f) {
@@ -96,8 +96,8 @@ sub cmd_upload_put {
 sub cmd_upload_delete {
     my $self = shift;
     return sub {
-        my $ctx = $self->ctx;
-        my $osgi = $ctx->osgish;
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
         my $file = shift || die "No file given"; 
         die "Filepath must not be absolute" if $file =~ /^\//;
         my @files;
@@ -128,7 +128,7 @@ sub cmd_upload_delete {
 sub uploaded_installed_bundles {
     my $self = shift;
     my $list = shift;
-    my $osgi = $self->ctx->osgish;
+    my $osgi = $self->osgish->agent;
     my $bundles = $osgi->bundles(use_cached => 1);
     my %locations = map { "file://" . $list->{$_}->{canonicalPath} => $_} keys %$list;
     #print Dumper(\%locations);

@@ -6,14 +6,11 @@ osgish - Admin's OSGi Shell
 
 =cut
 
-use Term::ShellUI;
-use Term::ANSIColor qw(:constants);
 use Getopt::Long qw(GetOptionsFromArray);
-use JMX::Jmx4Perl::Config;
 use strict;
-use English;
-use Data::Dumper;
-use OSGi::Osgish::Context;
+use JMX::Jmx4Perl::Config;
+use Config::General;
+use OSGi::Osgish;
 
 =head1 SYNOPSIS
 
@@ -84,14 +81,11 @@ if ($opts{version}) {
     exit(0);
 }
 
-
-my $no_color_prompt = 0;        # Don't color for certain readline imp.
-
 # Parse configuration files
 my $jmx_config = new JMX::Jmx4Perl::Config(&get_config($opts{config}));
 
 # Create global context object
-my $context = new OSGi::Osgish::Context(config => $jmx_config,args => \%opts);
+my $context = new OSGi::Osgish(config => $jmx_config,args => \%opts);
 
 # Let the shell run
 $context->run;
