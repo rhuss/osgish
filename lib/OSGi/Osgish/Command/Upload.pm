@@ -22,9 +22,7 @@ sub commands {
         {
          "upload" => { 
                       desc => "Upload related operations",
-                      proc => sub { 
-                          $self->osgish->commands->update_stack("upload",$cmds)
-                      },
+                      proc => $self->push_on_stack("upload",$cmds),
                       cmds => $cmds                       
                      },
          "u" => { alias => "upload", exclude_from_completion => 1},

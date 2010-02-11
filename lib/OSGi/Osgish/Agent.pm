@@ -13,13 +13,11 @@ OSGi::Osgish::Agent - Access to the OSGi agent bundle
 package OSGi::Osgish::Agent;
 
 use strict;
-use vars qw($VERSION);
 use JMX::Jmx4Perl;
 use JMX::Jmx4Perl::Request;
 use OSGi::Osgish::Agent::Upload;
 use Data::Dumper;
 
-$VERSION = "0.1.0_2";
 
 my $MBEANS_MAP = 
     { 
@@ -156,8 +154,8 @@ sub execute {
         } else {
             $self->{last_error} = $response->{error} . 
               ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
-            die "Connection refused\n" if $response->{error} =~ /Connection\s+refused/i;
-            die "Internal Server Error: " . $response->{error} . "\n";
+            die "Connection refused.\n" if $response->{error} =~ /Connection\s+refused/i;
+            die "Internal Server Error: " . $response->{error} . ".\n";
         }
     }
     return $response->value;

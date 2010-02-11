@@ -6,6 +6,44 @@ use strict;
 use Data::Dumper;
 use Term::ANSIColor qw(:constants);
 
+=head1 NAME 
+
+OSGi::Osgish::CommandHandler - Handler for osgish commands
+
+=head1 DESCRIPTION
+
+This object is responsible for managing L<OSGi::Osgish::Command> object which
+are at the heart of osgish and provide all features. During startup it
+registeres commands dynamicallt and pushes the L<OSGi::Osgish> context to them
+for allowing to access the agent and other handlers.
+
+Registration is occurs in two phases:
+
+...
+
+It also keeps a stack of so called navigational I<context> which can be used to
+provide a menu like structure (think of it like directories which can be
+entered). If the stack contains elements, the navigational commands C<..> and
+C</> are added to traverse the stack. C</> will always jump to the top of the
+stack (the I<root directory>) whereas C<..> will pop up one level in the stack
+(the I<parent directory>). Commands which want to manipulate the stack like
+pushing themselves on the stack should use the methods L</push_on_stack> or
+L</reset_stack> (for jumping to the top of the menu).
+
+=cut
+
+=head1 METHODS
+
+=over
+
+=item $command_handler = new OSGi::Osgish::CommandHandler($osgish,$shell)
+
+Create a new command handler object. The arguments to be passed are the osgish
+object (C<$osgish>) and the shell object (C<$shell>) in order to update the
+shell's current command set.
+
+=cut 
+
 sub new { 
     my $class = shift;
     my $osgish = shift || "No osgish object given";    
@@ -17,12 +55,134 @@ sub new {
     $self->{stack} = [];
     bless $self,(ref($class) || $class);
     $shell->term->prompt($self->_prompt);
+    $self->_register_commands;
     return $self;
 }
 
-sub register_commands { 
+=item $comand_handler->push_on_stack($context,$cmds)
+
+Update the stack with an entry of name C<$context> which provides the commands
+C<$cmds>. C<$cmds> must be a hashref as known to L<Term::ShellUI>, whose
+C<commands> method is used to update the shell. Additionally it updates the
+shell's prompt to reflect the state of the stack.
+
+=cut 
+
+sub push_on_stack {
     my $self = shift;
-    my $context = shift || die "No context given";
+    # The new context
+    my $context = shift;
+    # Sub-commands within the context
+    my $sub_cmds = shift;
+    my $contexts = $self->{stack};
+    push @$contexts,{ name => $context, cmds => $sub_cmds };
+    #print Dumper(\@contexts);
+
+    my $shell = $self->{shell};
+    # Set sub-commands
+    $shell->commands
+      ({
+        %$sub_cmds,
+        %{$self->_global_commands},
+        %{$self->_navigation_commands},
+       }
+      );    
+}
+
+=item $command_handler->reset_stack
+
+Reset the stack and install the top and global commands as collected from the
+registered L<OSGi::Osgish::Command>.
+
+=cut
+
+sub reset_stack {
+    my $self = shift;
+    my $shell = $self->{shell};
+    $shell->commands({ %{$self->_top_commands}, %{$self->_global_commands}});
+    $self->{stack} = [];
+}
+
+=item $command = $command_handler->command($command_name) 
+
+Get a registered command by name
+
+=cut 
+
+sub command {
+    my $self = shift;
+    my $name = shift || die "No command name given";
+    return $self->{commands}->{$name};
+}
+
+=back
+
+=cut
+
+# ============================================================================
+
+sub _top_commands {
+    my $self = shift;
+    my $top = $self->{top_commands};
+    my @ret = ();
+    for my $command (values %$top) {
+        push @ret, %{$command->top_commands};        
+    }
+    return { @ret };
+}
+
+sub _global_commands {
+    my $self = shift;
+    my $globals = $self->{global_commands};
+    my @ret = ();
+    for my $command (values %$globals) {
+        push @ret, %{$command->global_commands};        
+    }
+    return { @ret };
+}
+
+
+sub _navigation_commands {
+    my $self = shift;
+    my $shell = $self->{shell};
+    my $contexts = $self->{stack};
+    if (@$contexts > 0) {
+        return 
+            {".." => {
+                      desc => "Go up one level",
+                      proc => 
+                      sub { 
+                          my $stack = $self->{stack};
+                          my $parent = pop @$stack;
+                          if (@$stack > 0) {
+                              $shell->commands
+                                ({
+                                  %{$stack->[$#{$stack}]->{cmds}},
+                                  %{$self->_global_commands},
+                                  %{$self->_navigation_commands},
+                                 }
+                                );    
+                          } else { 
+                              $shell->commands($self->_top_commands);
+                          }
+                      }
+                     },
+             "/" => { 
+                     desc => "Go to the top level",
+                     proc => 
+                     sub { 
+                         $self->reset_stack();
+                     }
+                    }
+            };
+    } else {
+        return {};
+    }
+}
+
+sub _register_commands { 
+    my $self = shift;
+    my $osgish = $self->{osgish};
 
     # TODO: For now a fix list of commands, let them be looked up dynamically
     my @modules = ( "OSGi::Osgish::Command::Bundle",
@@ -39,7 +199,7 @@ sub register_commands {
         $file =~ s/::/\//g;
         require $file . ".pm";
         $module->import;
-        my $command = eval "$module->new(\$context)";
+        my $command = eval "$module->new(\$osgish)";
         die "Cannot register $module: ",$@ if $@;
         $commands->{$command->name} = $command;
         my $top_cmd = $command->top_commands;
@@ -80,99 +240,6 @@ sub _prompt {
     };
 }
 
-sub update_stack {
-    my $self = shift;
-    # The new context
-    my $context = shift;
-    # Sub-commands within the context
-    my $sub_cmds = shift;
-    # Don't update context
-    my $skip_context = shift;
-    my $contexts = $self->{stack};
-    push @$contexts,{ name => $context, cmds => $sub_cmds } unless $skip_context;
-    #print Dumper(\@contexts);
-
-    my $shell = $self->{shell};
-    # Set sub-commands
-    $shell->commands
-      ({
-        %$sub_cmds,
-        %{$self->global_commands},
-        %{$self->navigation_commands},
-       }
-      );    
-}
-
-sub navigation_commands {
-    my $self = shift;
-    my $shell = $self->{shell};
-    my $contexts = $self->{stack};
-    if (@$contexts > 0) {
-        return 
-            {".." => {
-                      desc => "Go up one level",
-                      proc => 
-                      sub { 
-                          my $stack = $self->{stack};
-                          my $parent = pop @$stack;
-                          if (@$stack > 0) {
-                              $shell->commands
-                                ({
-                                  %{$stack->[$#{$stack}]->{cmds}},
-                                  %{$self->global_commands},
-                                  %{$self->navigation_commands},
-                                 }
-                                );    
-                          } else { 
-                              $shell->commands($self->top_commands);
-                          }
-                      }
-                     },
-             "/" => { 
-                     desc => "Go to the top level",
-                     proc => 
-                     sub { 
-                         $self->reset_stack();
-                     }
-                    }
-            };
-    } else {
-        return {};
-    }
-}
-
-sub command {
-    my $self = shift;
-    my $name = shift || die "No command name given";
-    return $self->{commands}->{$name};
-}
-
-sub global_commands {
-    my $self = shift;
-    my $globals = $self->{global_commands};
-    my @ret = ();
-    for my $command (values %$globals) {
-        push @ret, %{$command->global_commands};        
-    }
-    return { @ret };
-}
-
-sub top_commands {
-    my $self = shift;
-    my $top = $self->{top_commands};
-    my @ret = ();
-    for my $command (values %$top) {
-        push @ret, %{$command->top_commands};        
-    }
-    return { @ret };
-}
-
-sub reset_stack {
-    my $self = shift;
-    my $shell = $self->{shell};
-    $shell->commands({ %{$self->top_commands}, %{$self->global_commands}});
-    $self->{stack} = [];
-}
 
 1;
 

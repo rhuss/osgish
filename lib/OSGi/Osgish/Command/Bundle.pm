@@ -23,12 +23,10 @@ sub commands {
     return  {
              "bundle" => { 
                           desc => "Bundles related operations",
-                          proc => sub { 
-                              $self->osgish->commands->update_stack("bundle",$cmds) 
-                          },
+                          proc => $self->push_on_stack("bundle",$cmds),
                           cmds => $cmds
                          },
-                      "b" => { alias => "bundle", exclude_from_completion => 1},
+             "b" => { alias => "bundle", exclude_from_completion => 1},
             };
 }
 
@@ -63,7 +61,7 @@ sub cmd_bundle_list {
         my $osgish = $self->osgish;
         my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
-        my ($opts,@filters) = $self->extract_command_args(["s!"],@_);
+        my ($opts,@filters) = $self->extract_command_options(["s!"],@_);
         my $bundles = $osgi->bundles;
         my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
         $text .= "-" x 87 . "\n";

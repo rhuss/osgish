@@ -60,6 +60,12 @@ sub server {
     return shift->{server};
 }
 
+sub list {
+    my $self = shift;
+    return $self->{server_list};
+}
+
+
 sub _init_server_list {
     my $self = shift;
     my $config = shift;
@@ -94,10 +100,7 @@ sub _init_server_list {
     return $ret_server;
 }
 
-sub list {
-    my $self = shift;
-    return $self->{server_list};
-}
+# ========================================================================================= 
 
 sub _prepare_server_name {
     my $self = shift;

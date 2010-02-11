@@ -9,6 +9,9 @@ use OSGi::Osgish::ServerHandler;
 use OSGi::Osgish::CompletionHandler;
 use OSGi::Osgish::CommandHandler;
 use Data::Dumper;
+use vars qw($VERSION);
+
+$VERSION = "0.1.0_3";
 
 =head1 NAME 
 
@@ -95,7 +98,6 @@ sub _init {
     $self->{servers} = new OSGi::Osgish::ServerHandler($self);
     $self->{shell} = $self->_create_shell;
     $self->{commands} = new OSGi::Osgish::CommandHandler($self,$self->{shell});
-    $self->{commands}->register_commands($self);
 }
 
 sub _create_shell {
@@ -110,8 +112,6 @@ sub _create_shell {
     }
     return new OSGi::Osgish::Shell(use_color => $use_color);
 }
-
-
 
 1;
 

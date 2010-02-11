@@ -32,30 +32,6 @@ sub services {
                                      @_);
 }
 
-sub _bundle_or_service {
-    my $self = shift;
-    my $osgish = $self->{osgish};
-    my ($ids_sub,$names_sub,@rest) = @_;
-    my $args = @rest ? { @rest } : {};
-    return sub { 
-        my ($term,$cmpl) = @_;
-        return [] unless $osgish->agent;
-        my $str = $cmpl->{str} || "";
-        my $len = length($str);
-        if (!$args->{no_ids} && $str =~ /^\d+$/) { 
-            # Complete on ids
-            return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{&$ids_sub()} ];
-        } else {
-            my @sym_names = sort keys %{&$names_sub()};
-            if ($str) {
-                return [ grep { substr($_,0,$len) eq $str } @sym_names ];
-            } else {
-                return \@sym_names;
-            }
-        }
-    }
-}
-
 sub files_extended {
     my $self = shift;
     return sub {
@@ -113,6 +89,32 @@ sub servers {
         my $str = $cmpl->{str} || "";
         my $len = length($str);
         return [ grep { substr($_,0,$len) eq $str }  map { $_->{name} } @$server_list  ];
+    }
+}
+
+# ====================================================================================== 
+
+sub _bundle_or_service {
+    my $self = shift;
+    my $osgish = $self->{osgish};
+    my ($ids_sub,$names_sub,@rest) = @_;
+    my $args = @rest ? { @rest } : {};
+    return sub { 
+        my ($term,$cmpl) = @_;
+        return [] unless $osgish->agent;
+        my $str = $cmpl->{str} || "";
+        my $len = length($str);
+        if (!$args->{no_ids} && $str =~ /^\d+$/) { 
+            # Complete on ids
+            return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{&$ids_sub()} ];
+        } else {
+            my @sym_names = sort keys %{&$names_sub()};
+            if ($str) {
+                return [ grep { substr($_,0,$len) eq $str } @sym_names ];
+            } else {
+                return \@sym_names;
+            }
+        }
     }
 }
 

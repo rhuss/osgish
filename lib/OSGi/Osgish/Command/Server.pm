@@ -36,7 +36,7 @@ sub cmd_connect {
         $osgish->servers->connect_to_server($arg,$name);
         $osgish->commands->reset_stack;
         my ($yellow,$reset) = $osgish->color("host",RESET);
-        print "Connected to " . $yellow . $osgish->server . $reset .  " (" . $osgish->agent->url . ")\n";
+        print "Connected to " . $yellow . $osgish->server . $reset .  " (" . $osgish->agent->url . ").\n";
     }
 }
 

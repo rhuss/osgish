@@ -22,9 +22,7 @@ sub commands {
     return {
             "service" => { 
                           desc => "Service related operations",
-                          proc => sub { 
-                              $self->osgish->commands->update_stack("service",$cmds) 
-                          },
+                          proc => $self->push_on_stack("service",$cmds),
                           cmds => $cmds                       
                          },
             "s" => { alias => "service", exclude_from_completion => 1},
@@ -59,7 +57,7 @@ sub cmd_service_list {
         my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
         my $services = $osgi->services;
-        my ($opts,@filters) = $self->extract_command_args(["u=s","b=s"],@_);
+        my ($opts,@filters) = $self->extract_command_options(["u=s","b=s"],@_);
         
         my $filtered_services = $self->filter_services($services,$opts,@filters);
         return unless @$filtered_services;
