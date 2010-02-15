@@ -107,7 +107,7 @@ sub bundle_symbolic_names {
 sub bundle_ids {
     my $self = shift;
     $self->_update_bundles(@_);
-    return $self->{bundle}->{ids};
+    return sort keys %{$self->{bundle}->{ids}};
 }
 
 sub service_object_classes {
@@ -119,21 +119,87 @@ sub service_object_classes {
 sub service_ids {
     my $self = shift;
     $self->_update_services(@_);
-    return $self->{service}->{ids};
+    return sort keys %{$self->{service}->{ids}};
+}
+
+
+sub resolve_bundle {
+    shift->_bulk_bundle_cmd("resolveBundle","resolveBundles",@_);
 }
 
 
 sub start_bundle {
-    shift->_start_stop_bundle("start",@_);
+    shift->_bulk_bundle_cmd("startBundle","startBundles",@_);
 }
 
 sub stop_bundle {
-    shift->_start_stop_bundle("stop",@_);
+    shift->_bulk_bundle_cmd("stopBundle","stopBundles",@_);
+}
+
+sub uninstall_bundle {
+    shift->_bulk_bundle_cmd("uninstallBundle","uninstallBundles",@_);
+}
+
+sub refresh_bundle {
+    shift->_bulk_bundle_cmd("refreshPackages(long)","refreshPackages([J)",@_);
+}
+
+sub _bulk_bundle_cmd {
+    my $self = shift;
+    my $what_single = shift || die "Internal: No single type give\n";
+    my $what_multi = shift || die "Internal: No multi type give\n";
+    my @ids = ();
+    for my $i (@_) {    
+        push @ids,$self->_id_or_symbolic_name($i);
+    }
+    die "No id given\n" unless @ids;
+    if (@ids > 1) {
+        $self->execute($self->_mbean_name("framework"),$what_multi,\@ids);
+    } else {
+        $self->execute($self->_mbean_name("framework"),$what_single,$ids[0]);
+    }
+}
+
+sub install_bundle {
+    my $self = shift;
+    my @locations = @_;
+    my $mbean = $self->_mbean_name("framework");
+    if (@locations > 1) {
+        $self->execute($mbean,"installBundles([Ljava.lang.String;)",\@locations);
+    } else {
+        $self->execute($mbean,"installBundle(java.lang.String)",$locations[0]);
+    }
+}
+
+
+sub update_bundle {
+    my $self = shift;
+    my $id = $self->_id_or_symbolic_name(shift);
+    my $location = shift;
+    if ($location) {
+        $self->execute($self->_mbean_name("framework"),"updateBundle(long,java.lang.String)",$id,$location);    
+    } else {
+        $self->execute($self->_mbean_name("framework"),"updateBundle(long)",$id);
+    }
+}
+
+sub _id_or_symbolic_name {
+    my $self = shift;
+    my $id = shift;
+    my $ret = $id =~ /^\d+$/ ? $id : $self->{bundle}->{symbolic_names}->{$id};
+    die "Cannot find bundle '$id': Not an id nor a symbolic name\n"  unless ($ret);
+    die "No bundle with id $id\n" unless $self->{bundle}->{ids}->{$id};
+    return $ret;
 }
 
 sub shutdown {
     my $self = shift;
     $self->execute($self->_mbean_name("framework"),"shutdownFramework");
+}
+
+sub restart {
+    my $self = shift;
+    $self->execute($self->_mbean_name("framework"),"restartFramework");
 }
 
 
@@ -150,7 +216,7 @@ sub execute {
     if ($response->is_error) {
         #print Dumper($response);
         if ($response->status == 404) {
-            die "No agent-agent running [Not found: $mbean,$operation].\n"
+            die "No agent running [Not found: $mbean,$operation].\n"
         } else {
             $self->{last_error} = $response->{error} . 
               ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
@@ -164,18 +230,6 @@ sub execute {
 sub last_error {
     my $self = shift;
     return $self->{last_error};
-}
-
-sub _start_stop_bundle {
-    my $self = shift;
-    my $cmd = shift;
-    my $what = shift || die "No id or name given\n";
-    
-    my $id = $what =~ /^\d+$/ ? $what : $self->{bundle}->{symbolic_names}->{$what};
-    unless ($id) {
-        die "Cannot $cmd bundle '$what': Not an id nor a symbolic name\n";
-    }
-    $self->execute($self->_mbean_name("framework"),"${cmd}Bundle",$id);
 }
 
 sub _mbean_name {
@@ -235,7 +289,7 @@ sub _fetch_list {
     my $ret = {};
     $ret->{list} = $self->execute($self->_mbean_name($mbean),$operation);
     $ret->{timestamp} = time;
-    $ret->{ids} = [ map { $_->{Identifier} } values %{$ret->{list}} ];
+    $ret->{ids} = { map { $_->{Identifier} => 1 } values %{$ret->{list}} };
     return $ret;
 }
 

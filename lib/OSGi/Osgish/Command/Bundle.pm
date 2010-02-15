@@ -9,14 +9,55 @@ use Data::Dumper;
 
 @ISA = qw(OSGi::Osgish::Command);
 
+=head1 NAME 
+
+OSGi::Osgish::Command::Bundle - Bundle related commands
+
+=head1 DESCRIPTION
+
+This collection of shell commands provided access to bundle related
+operations. I.e. these are
+
+=over
+
+=item * 
+
+List of bundles ('ls')
+
+=item * 
+
+Start and Stopping of bundles ('start'/'stop')
+
+=back
+
+=cut
+
+=head1 COMMANDS
+
+=over
+
+=cut 
+
+
+sub new { 
+    my $class = shift;
+    my $self = $class->SUPER::new(@_); 
+    $self->{csv_comma} = new Text::CSV({sep_char => ",",allow_whitespace => 1,allow_loose_quotes => 1,quote_char => '"',escape_char => "\\" });
+    $self->{csv_semicolon} = new Text::CSV({ sep_char => ";",allow_whitespace => 1, allow_loose_quotes => 1,quote_char => '"',escape_char => "\\" });
+    return $self;
+}
+
+
+# Name of this command
 sub name { "bundle" }
 
+# We hook into as top-level commands
 sub top_commands {
     my $self = shift;
     return $self->agent ? $self->sub_commands : {};
 }
 
-# Commands in context "bundle"
+# Context command "bundle"
 sub commands {
     my $self = shift;
     my $cmds = $self->sub_commands; 
@@ -30,6 +71,7 @@ sub commands {
             };
 }
 
+# The 'real' commands
 sub sub_commands {
     my $self = shift;
     return {
@@ -39,21 +81,63 @@ sub sub_commands {
                      args => $self->complete->bundles(no_ids => 1)
                     },
             "start" => { 
-                        desc => "Start a bundle",
+                        desc => "Start bundles",
                         proc => $self->cmd_bundle_start,
                         args => $self->complete->bundles
                        },
             "stop" => { 
-                       desc => "Stop a bundle",
+                       desc => "Stop bundles",
                        proc => $self->cmd_bundle_stop,
                        args => $self->complete->bundles
-                      }
+                      },
+            "resolve" => {
+                          desc => "Resolve bundles",
+                          proc => $self->cmd_bundle_resolve,
+                          args => $self->complete->bundles
+                         },
+            "update" => {
+                         desc => "Update a bundle optionally from a new location",
+                         proc => $self->cmd_bundle_update,
+                         args => $self->complete->bundles
+                        },
+            "install" => {
+                            desc => "Install a bundle",
+                            proc => $self->cmd_bundle_install,
+                          #args => $self->complete->bundles
+                           },
+            "uninstall" => {
+                            desc => "Uninstall bundles",
+                            proc => $self->cmd_bundle_uninstall,
+                            args => $self->complete->bundles
+                           },
+            "refresh" => {
+                          desc => "Refresh bundles",
+                          proc => $self->cmd_bundle_refresh,
+                          args => $self->complete->bundles
+                        }
            };
 }
 
 # =================================================================================================== 
 
-# List bundles
+
+=item cmd_bundle_list
+
+List commands which can filter bundles by wildcard and knows about the
+following options:
+
+=over
+
+=item -s
+
+Show symbolic names instead of descriptive names
+
+=back
+
+If a single bundle is given as argument its details are shown.
+
+=cut
+
 sub cmd_bundle_list {
     my $self = shift; 
     
@@ -103,24 +187,112 @@ sub cmd_bundle_list {
     }
 }
 
+
+=item cmd_bundle_start
+
+Resolve one or more bundles by its id or symbolicname
+
+=cut 
+
+sub cmd_bundle_resolve {
+    my $self = shift;
+    return sub { 
+        my @args = @_;
+        $self->agent->resolve_bundle(@args);
+    }
+}
+
+
+=item cmd_bundle_start
+
+Start one or more bundles by its id or symbolicname
+
+=cut 
+
 sub cmd_bundle_start {
     my $self = shift;
     return sub { 
-        my $bundle = shift;
-        $self->agent->start_bundle($bundle);
+        my @args = @_;
+        $self->agent->start_bundle(@args);
     }
 }
+
+=item cmd_bundle_stop
+
+Stop one or more bundles by its id or symbolicname
+
+=cut 
 
 sub cmd_bundle_stop {
     my $self = shift;
     return sub { 
-        my $bundle = shift;
-        $self->agent->stop_bundle($bundle);
+        my @args = @_;
+        $self->agent->stop_bundle(@args);
     }
 }
 
+=item cmd_bundle_update
+
+Update a bundle from its current location
+
+=cut
+
+sub cmd_bundle_update {
+    my $self = shift;
+    return sub {
+        my $bundle = shift;
+        my $location = shift;
+        $self->agent->update_bundle($bundle,$location);
+    }
+}
+
+=item cmd_bundle_install
+
+Install one or more bundles
+
+=cut
+
+sub cmd_bundle_install {
+    my $self = shift;
+    return sub {
+        my @args = @_;
+        $self->agent->install_bundle(@args);
+    }
+}
+
+=item cmd_bundle_uninstall
+
+Uninstall one or more bundles
+
+=cut
+
+sub cmd_bundle_uninstall {
+    my $self = shift;
+    return sub {
+        my @args = @_;
+        $self->agent->uninstall_bundle(@args);
+    }
+}
+
+=item cmd_bundle_refresh
+
+Refresh one or more bundles
+
+=cut
+
+sub cmd_bundle_refresh {
+    my $self = shift;
+    return sub {
+        my @args = @_;
+        $self->agent->refresh_bundle(@args);
+    }
+}
+
+
+# Print a single bundle's info
 sub print_bundle_info {
     my $self = shift;
+    my $osgish = $self->osgish;
 
     my $bu = shift;
     my $opts = shift;
@@ -128,11 +300,24 @@ sub print_bundle_info {
     printf("Name:          %s\n",$name) if $name;
     printf("Symbolic-Name: %s\n",$bu->{SymbolicName});
     printf("Location:      %s (%s)\n",$bu->{Location},$self->format_date($bu->{LastModified}/1000));
-    my $imports = $bu->{ImportedPackages};
     my $label = "Imports:";
-    for my $i (sort @$imports) {
-        my ($p,$v) = ($1,$2) if $i =~ /(.*?);(.*)?/;
-        printf("%-14.14s %s (%s)\n",$label,$p,$v);
+    my $imports = $self->_extract_imports($bu->{ImportedPackages},$bu->{Headers});
+    #my $exports = $self->_extract_exports($bu->{ExportedPackages});
+    #$imports = $bu->{ImportedPackages};
+    my ($pr,$pv,$po,$re) = $osgish->color("package_resolved","package_version","package_optional",RESET);
+    for my $k (sort { $a cmp $b } keys %$imports) {
+        my $val = $imports->{$k};
+        my $version = $val->{version};
+        if ($val->{version}) {
+            $version = $pv . $version . $re;
+            $version .= " " . $val->{version_spec} if $val->{version_spec};
+        } else {
+            $version = $val->{version_spec} if $val->{version_spec};
+        }
+        my $optional = $val->{optional} ? $po . "*" . $re : "";
+        my $package = $k;
+        $package = $pr . $package . $re if ($val->{resolved});
+        printf("%-14.14s %s %s %s\n",$label,$package,$version,$optional);
         $label = "";
     }
     my $headers = $bu->{Headers};
@@ -143,6 +328,89 @@ sub print_bundle_info {
         $label = "";
     }
     #print Dumper($bu);
+}
+
+sub _extract_imports {
+    my $self = shift;
+    my ($imp,$headers) = @_;
+    my $imp_headers = {};
+    for my $i (grep { $_->{Key} eq 'Import-Package' } values %{$headers}) {
+        my $val = $i->{Value};
+        $imp_headers = { %$imp_headers, %{$self->_split_property($val)} };
+    }
+    my $imports = {};
+    for my $i (@$imp) {
+        my ($package,$version) = $self->_split_package($i);
+        my $e = {};
+        $e->{version} = $version;
+        $e->{resolved} = 1;
+        if ($imp_headers->{$package}) {
+            $self->_add_imp_header_info($e,$imp_headers->{$package});
+        }
+        $imports->{$package} = $e;
+    }
+
+    # Add unresolved imports mentioned in the header
+    for my $k (keys %$imp_headers) {
+        if (!$imports->{$k}) {
+            my $e = $self->_add_imp_header_info({},$imp_headers->{$k});
+            $e->{resolved} = 0;
+            $imports->{$k} = $e;
+        }
+    }
+    return $imports;
+    #print Dumper($imports);
+}
+
+sub _add_imp_header_info {
+    my $self = shift;
+    my $e = shift;
+    my $imp = shift;
+    my $attrs = $imp->{attributes};
+    my $dirs = $imp->{directives};
+    ($e->{optional} = 1) && delete $dirs->{resolution} if $dirs->{resolution} eq "optional";
+    $e->{version_spec} = delete $attrs->{version} if $attrs->{version};
+    $e->{directives} = $dirs if %{$dirs};
+    $e->{attributes} = $attrs if %{$dirs};
+    return $e;
+}
+
+sub _split_package {
+    my $self = shift;
+    return split /;/,shift,2;
+}
+
+sub _split_property {
+    my $self = shift;
+    my $prop = shift;
+    my $csv_c = $self->{csv_comma};
+    my $csv_s = $self->{csv_semicolon};
+    my $l = $prop;
+    my $ret = {};
+    while ($l) {
+        $l =~ s/([^,]*?(".*?")*)(,|$)//;
+        my $part = $1;
+        my @targets = ();
+        my $attrs = {};
+        my $directives = {};
+        while ($part) {
+            $part =~ s/([^;]*?(".*?")*)(;|$)//;
+            my $sub = $1;
+            if ($sub =~ /^(.*):=\"?(.*?)\"?$/) {
+                $directives->{$1} = $2;
+            } elsif ($sub =~ /^(.*)=\"?(.*?)\"?$/) {
+                $attrs->{$1} = $2;
+            } else {
+                push @targets,$sub;
+            }
+            for my $t (@targets) {
+                $ret->{$t} = { }; 
+                $ret->{$t}->{attributes} = $attrs if $attrs;
+                $ret->{$t}->{directives} = $directives if $directives;
+            }            
+        }
+    }
+    return $ret;
 }
 
 # Filter bundles according to some criteria
@@ -166,6 +434,9 @@ sub filter_bundles {
     }
 }
 
+=back
+
+=cut
 
 
 1;

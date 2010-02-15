@@ -35,7 +35,12 @@ sub global_commands {
          $osgi ? ("shutdown" => {
                                  desc => "Shutdown server",
                                  proc => $self->cmd_shutdown
-                                }) : ()
+                                },
+                  "restart" => {
+                                desc => "Restart server",
+                                proc => $self->cmd_restart
+                               }
+                 ) : ()
         };
 }
 
@@ -58,6 +63,27 @@ sub cmd_shutdown {
             $osgish->commands->reset_stack;
         } else {
             print "Shutdown of ". $yellow . $server . $reset . " cancelled\n";
+        }
+    }
+}
+
+# Restart the server's framework
+sub cmd_restart {
+    my $self = shift;
+    return sub {
+        my $osgish = $self->osgish;
+        my $osgi = $osgish->agent;
+        unless ($osgi) {
+            print "Not connected to a server\n";
+            return;
+        }
+        my ($yellow,$reset) = $osgish->color("host",RESET);
+        my $server = $osgish->server;
+        my $answer = &choose("Really restart " . $yellow . $server . $reset . " ?","yes","no");
+        if ($answer eq "yes") {
+            $osgi->restart;
+        } else {
+            print "Restart of ". $yellow . $server . $reset . " cancelled\n";
         }
     }
 }

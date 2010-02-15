@@ -170,7 +170,7 @@ my $build = $class->new
                 "Term::ReadLine" => 0,
                 "Term::ReadLine::Perl" => 0,
                 "Term::ShellUI" => "0.86",
-                "Term::Clui" => 0
+                "Term::Clui" => 0,
                },
    recommends => {
                    "Term::ReadLine::Gnu" => "0.27",

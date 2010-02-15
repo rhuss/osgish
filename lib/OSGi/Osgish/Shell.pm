@@ -95,7 +95,10 @@ sub _init {
                             prompt_context => CYAN,
                             prompt_empty => RED,
                             upload_installed => GREEN,
-                            upload_uninstalled => RED
+                            upload_uninstalled => RED,
+                            package_resolved => GREEN,
+                            package_optional => YELLOW,
+                            package_version => CYAN
                            };
     # Force pipe, quit if less than a screen-full.
     my @args = ('-f','-E','-X');
