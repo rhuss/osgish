@@ -136,13 +136,13 @@ sub cmd_bundle_list {
         my $osgish = $self->osgish;
         my $osgi = $osgish->agent;
         print "Not connected to a server\n" and return unless $osgi;
-        my ($opts,@filters) = $self->extract_command_options(["s!"],@_);
+        my ($opts,@filters) = $self->extract_command_options(["s!","i!","e!","h!"],@_);
         my $bundles = $osgi->bundles;
         my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
         $text .= "-" x 87 . "\n";
         my $nr = 0;
         
-        my $filtered_bundles = $self->filter_bundles($bundles,$opts,@filters);
+        my $filtered_bundles = $self->filter_bundles($bundles,@filters);
         return unless @$filtered_bundles;
         
         if (@$filtered_bundles == 1) {
@@ -231,9 +231,25 @@ Update a bundle from its current location
 sub cmd_bundle_update {
     my $self = shift;
     return sub {
-        my $bundle = shift;
-        my $location = shift;
-        $self->agent->update_bundle($bundle,$location);
+        my ($opts,@filters) = $self->extract_command_options(["l=s"],@_);
+        my $agent = $self->osgish->agent;
+        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->filter_bundles($agent->bundles,@filters)} ];
+        die "No bundle to update given\n" unless @$filtered_bundles;
+        #print Dumper($filtered_bundles);
+        if ($opts->{l} || @$filtered_bundles == 1) {
+            die "Can only update a single bundle with -l. Given : ",join(",",@$filtered_bundles),"\n"
+              if @$filtered_bundles > 1;
+            my $ret = $self->agent->update_bundle($filtered_bundles->[0],$opts->{l});
+            print "Updated ",$filtered_bundles->[0],"\n";
+        } else {
+            my $ret = $self->agent->update_bundles(@$filtered_bundles);
+            if ($ret->{Success} eq "true") {
+                print "Updated bundles ",(join ", ",@{$ret->{Completed}}),"\n";
+            } else {
+                print "Error during update: ",$ret->{Error},"\n";
+                print Dumper($ret);
+            }
+        }
     }
 }
 
@@ -284,52 +300,143 @@ sub cmd_bundle_refresh {
 sub print_bundle_info {
     my $self = shift;
     my $osgish = $self->osgish;
-
+    
     my $bu = shift;
     my $opts = shift;
+    my $txt = "";
+
+    $self->_dump_main_info(\$txt,$bu);
+    $txt .= "\n";
+
+    my $imports = $self->_extract_imports($bu->{ImportedPackages},$bu->{Headers},$opts->{i});
+    $self->_dump_imports(\$txt,$imports,$opts);
+
+
+    my $exports = $self->_extract_exports($bu->{ExportedPackages},$opts->{e});
+    $self->_dump_exports(\$txt,$exports,$opts);
+
+    $self->_dump_headers(\$txt,$bu->{Headers}) if ($opts->{h});
+
+    $self->print_paged($txt);
+
+    #print Dumper($bu);
+}
+
+sub _dump_main_info {
+    my $self = shift;
+    my $ret = shift;
+    my $bu = shift;
+    my $osgish = $self->osgish;
+
     my $name = $bu->{Headers}->{'[Bundle-Name]'}->{Value};
-    printf("Name:          %s\n",$name) if $name;
-    printf("Symbolic-Name: %s\n",$bu->{SymbolicName});
-    printf("Location:      %s (%s)\n",$bu->{Location},$self->format_date($bu->{LastModified}/1000));
+    my ($c_id,$c_active,$c_inactive,$c_reset) = $osgish->color("bundle_info_id","bundle_active","bundle_inactive",RESET);    
+    my $sym = $bu->{SymbolicName} || $bu->{Location};
+    my $color = "";
+    $color = $c_inactive if lc $bu->{State} eq "installed";
+    $color = $c_active if lc $bu->{State} eq "active";
+    $sym = $color . $sym . $c_reset;
+    $$ret .= sprintf("Name:          %s %s\n",$c_id.$bu->{Identifier}.$c_reset,$name ? $name : $sym) if $name;
+    $$ret .= sprintf("               %s\n",$sym) if $name;
+    $$ret .= sprintf("Location:      %s (%s)\n",$bu->{Location},$self->format_date($bu->{LastModified}/1000));
+}
+
+sub _dump_imports {
+    my $self = shift;
+    my $ret = shift;
+    my $imports = shift;
+    my $opts = shift;
+    my $osgish = $self->osgish;
+
     my $label = "Imports:";
-    my $imports = $self->_extract_imports($bu->{ImportedPackages},$bu->{Headers});
-    #my $exports = $self->_extract_exports($bu->{ExportedPackages});
-    #$imports = $bu->{ImportedPackages};
-    my ($pr,$pv,$po,$re) = $osgish->color("package_resolved","package_version","package_optional",RESET);
+    my ($c_pr,$c_pv,$c_po,$c_ps,$c_re) = $osgish->color("package_resolved","package_version","package_optional","package_source",RESET);
     for my $k (sort { $a cmp $b } keys %$imports) {
         my $val = $imports->{$k};
         my $version = $val->{version};
         if ($val->{version}) {
-            $version = $pv . $version . $re;
+            $version = $c_pv . $version . $c_re;
             $version .= " " . $val->{version_spec} if $val->{version_spec};
         } else {
             $version = $val->{version_spec} if $val->{version_spec};
         }
-        my $optional = $val->{optional} ? $po . "*" . $re : "";
+        my $optional = $val->{optional} ? $c_po . " * " . $c_re : "";
         my $package = $k;
-        $package = $pr . $package . $re if ($val->{resolved});
-        printf("%-14.14s %s %s %s\n",$label,$package,$version,$optional);
+        $package = $c_pr . $package . $c_re if ($val->{resolved});
+        my $src = "";
+        if ($val->{source}) {
+            $src = " <-- " . $c_ps . ($opts->{s} ? $val->{source}->{name} : $val->{source}->{id}) . $c_re;
+        }
+        $$ret .= sprintf("%-14.14s %s %s%s%s\n",$label,$package,$version,$optional,$src);
         $label = "";
     }
-    my $headers = $bu->{Headers};
-    $label = "Headers:";
+}
+
+sub _dump_exports {
+    my $self = shift;
+    my $ret = shift;
+    my $exports = shift;
+    my $opts = shift;
+    my $osgish = $self->osgish;
+
+    my $label = "Exports:";
+    my ($c_pv,$c_pr,$c_ps,$c_re) = $osgish->color("package_version","package_resolved","package_source",RESET);
+    for my $k (sort { $a cmp $b } keys %$exports) {
+        my $val = $exports->{$k};
+        my $version = $val->{version};
+        $version = $c_pv . $version . $c_re if ($val->{version});
+        my $package = $k;
+        $package = $c_pr . $package . $c_re if ($val->{source});
+        my $src = "";
+        if ($val->{source}) {
+            $src = " <-- " . $c_ps . ($opts->{s} ? $val->{source}->{name} : $val->{source}->{id}) . $c_re;
+        }
+        $$ret .= sprintf("%-14.14s %s %s%s\n",$label,$package,$version,$src);
+        $label = "";
+    }
+}
+
+sub _dump_headers {
+    my $self = shift;
+    my $ret = shift;
+    my $headers = shift;
+    my $osgish = $self->osgish;
+    my $label = "Headers:";
     #print Dumper($headers);
+    my ($c_h,$c_v,$c_r) = $osgish->color("header_name","header_value",RESET);
     for my $h (sort { $headers->{$a}->{Key} cmp $headers->{$b}->{Key} } keys %$headers) {
-        printf("%-14.14s %s = %s\n",$label,$headers->{$h}->{Key},$headers->{$h}->{Value});
-        $label = "";
+        my $val = $headers->{$h}->{Value};
+        my $key = $headers->{$h}->{Key};
+        if ($key =~ /^(Export|Import)-Package$/ || ($val =~ /[,;]\s*version=/)) {
+            my $prop = $val;
+            my @props;
+            while ($prop) {
+                $prop =~ s/([^,]*?(".*?")*)(,|$)//;
+                push @props,$1;
+            }
+            my $l = length $key;
+            $key = $c_h . $key . $c_r;
+            $$ret .= sprintf("%-14.14s %s = %s%s%s,\n",$label,$key,$c_v,shift @props,$c_r);
+            $label = "";
+            while (@props) {
+                $$ret .= sprintf("%-14.14s %${l}.${l}s   %s%s%s%s\n",$label,"",$c_v,shift @props,$c_r,@props ? "," : "");
+            }
+        } else {
+            $key = $c_h . $key . $c_r;
+            $$ret .= sprintf("%-14.14s %s = %s%s%s\n",$label,$key,$c_v,$val,$c_r);
+            $label = "";
+        }
     }
-    #print Dumper($bu);
 }
 
 sub _extract_imports {
     my $self = shift;
-    my ($imp,$headers) = @_;
+    my ($imp,$headers,$lookup_sources) = @_;
     my $imp_headers = {};
     for my $i (grep { $_->{Key} eq 'Import-Package' } values %{$headers}) {
         my $val = $i->{Value};
         $imp_headers = { %$imp_headers, %{$self->_split_property($val)} };
     }
     my $imports = {};
+    my $sources = $self->_lookup_sources() if $lookup_sources;
     for my $i (@$imp) {
         my ($package,$version) = $self->_split_package($i);
         my $e = {};
@@ -338,6 +445,7 @@ sub _extract_imports {
         if ($imp_headers->{$package}) {
             $self->_add_imp_header_info($e,$imp_headers->{$package});
         }
+        $e->{source} = $sources->{$package} if $lookup_sources;
         $imports->{$package} = $e;
     }
 
@@ -350,7 +458,29 @@ sub _extract_imports {
         }
     }
     return $imports;
-    #print Dumper($imports);
+}
+
+sub _extract_exports {
+    my $self = shift;
+    my ($exp,$lookup_sources) = @_;
+    my $exports = {};
+    my $sources = $self->_lookup_sources() if $lookup_sources;
+    for my $e (@$exp) {
+        my ($package,$version) = $self->_split_package($e);
+        my $e = {};
+        $e->{version} = $version;
+        $e->{source} = $sources->{$package} if $lookup_sources;
+        $exports->{$package} = $e;
+    }
+    return $exports;
+}
+
+
+sub _lookup_sources {
+    my $self = shift;
+    my $agent = $self->agent;
+    my $bundles = $agent->bundles;
+    print Dumper($bundles);
 }
 
 sub _add_imp_header_info {
@@ -374,8 +504,6 @@ sub _split_package {
 sub _split_property {
     my $self = shift;
     my $prop = shift;
-    my $csv_c = $self->{csv_comma};
-    my $csv_s = $self->{csv_semicolon};
     my $l = $prop;
     my $ret = {};
     while ($l) {
@@ -407,7 +535,7 @@ sub _split_property {
 # Filter bundles according to some criteria
 sub filter_bundles {
     my $self = shift;
-    my ($bundles,$opts,@filters) = @_;
+    my ($bundles,@filters) = @_;
 
     if (@filters) {
         my %filtered_bundles;

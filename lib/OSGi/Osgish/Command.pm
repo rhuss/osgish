@@ -174,6 +174,9 @@ sub print_paged {
     my $self = shift;
     my $text = shift;
     my $nr = shift;
+    if (!$nr) {
+        $nr = scalar(split /\n/s,$text);
+    }
     if (defined($nr) && $nr < 24) {
         print $text;
     } else {

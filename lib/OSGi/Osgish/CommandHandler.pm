@@ -163,7 +163,10 @@ sub _navigation_commands {
                                  }
                                 );    
                           } else { 
-                              $shell->commands($self->_top_commands);
+                              $shell->commands({ 
+                                                %{$self->_top_commands},
+                                                %{$self->_global_commands},
+                                               });
                           }
                       }
                      },

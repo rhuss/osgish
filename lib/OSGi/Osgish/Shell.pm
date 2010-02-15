@@ -98,10 +98,18 @@ sub _init {
                             upload_uninstalled => RED,
                             package_resolved => GREEN,
                             package_optional => YELLOW,
-                            package_version => CYAN
+                            package_version => CYAN,
+                            package_source => RED,
+                            bundle_info_id => RED,
+                            header_name => YELLOW,
+                            header_value => ""
                            };
     # Force pipe, quit if less than a screen-full.
-    my @args = ('-f','-E','-X');
+    my @args = (
+                '-f',  # force, needed for color output
+#                '-E',  # Exit automatically at end of output
+                '-X'   # no init
+               );
     if ($self->use_color) {
         # Raw characters
         push @args,'-r';

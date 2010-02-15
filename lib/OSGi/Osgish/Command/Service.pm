@@ -23,7 +23,7 @@ sub commands {
             "service" => { 
                           desc => "Service related operations",
                           proc => $self->push_on_stack("service",$cmds),
-                          cmds => $cmds                       
+                          cmds => $cmds 
                          },
             "s" => { alias => "service", exclude_from_completion => 1},
             "serv" => { alias => "service", exclude_from_completion => 1}
@@ -62,8 +62,8 @@ sub cmd_service_list {
         my $filtered_services = $self->filter_services($services,$opts,@filters);
         return unless @$filtered_services;
         
-        my $text = sprintf("%4.4s  %-62.62s %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
-        $text .= "-" x 74 . "+" . "-" x 24 . "\n";
+        my $text = sprintf("%4.4s  %-62.62s  %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
+        $text .= "-" x 76 . "+" . "-" x 24 . "\n";
         my $nr = 0;
         for my $s (sort { $a->{Identifier} <=> $b->{Identifier} } @{$filtered_services}) {
             my $id = $s->{Identifier};

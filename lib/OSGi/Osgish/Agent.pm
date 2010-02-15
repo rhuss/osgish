@@ -183,12 +183,26 @@ sub update_bundle {
     }
 }
 
+# Return values
+sub update_bundles {
+    my $self = shift;
+    my @ids;
+    for my $i (@_) {    
+        push @ids,$self->_id_or_symbolic_name($i);
+    }
+    if (@ids > 1) {
+        return $self->execute($self->_mbean_name("framework"),"updateBundles([J)",\@ids);    
+    } else {
+        return $self->execute($self->_mbean_name("framework"),"updateBundle(long)",$ids[0]);
+    }
+}
+
 sub _id_or_symbolic_name {
     my $self = shift;
     my $id = shift;
     my $ret = $id =~ /^\d+$/ ? $id : $self->{bundle}->{symbolic_names}->{$id};
     die "Cannot find bundle '$id': Not an id nor a symbolic name\n"  unless ($ret);
-    die "No bundle with id $id\n" unless $self->{bundle}->{ids}->{$id};
+    die "No bundle with id $id\n" unless $self->{bundle}->{ids}->{$ret};
     return $ret;
 }
 
@@ -220,11 +234,24 @@ sub execute {
         } else {
             $self->{last_error} = $response->{error} . 
               ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
-            die "Connection refused.\n" if $response->{error} =~ /Connection\s+refused/i;
-            die "Internal Server Error: " . $response->{error} . ".\n";
+            die $self->_prepare_error_message($response) . ".\n";
         }
     }
     return $response->value;
+}
+
+sub _prepare_error_message {
+    my $self = shift;
+    my $resp = shift;
+    my $st = $resp->stacktrace;
+    return "Connection refused.\n" if $resp->{error} =~ /Connection\s+refused/i;
+
+    if ($st) {
+        if ($st =~ /BundleException:\s*([^\n]+)/s) {
+            return $1;
+        }
+    }
+    return "Server Error: " . $resp->{error};
 }
 
 sub last_error {
