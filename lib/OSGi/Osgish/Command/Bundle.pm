@@ -39,15 +39,6 @@ Start and Stopping of bundles ('start'/'stop')
 =cut 
 
 
-sub new { 
-    my $class = shift;
-    my $self = $class->SUPER::new(@_); 
-    $self->{csv_comma} = new Text::CSV({sep_char => ",",allow_whitespace => 1,allow_loose_quotes => 1,quote_char => '"',escape_char => "\\" });
-    $self->{csv_semicolon} = new Text::CSV({ sep_char => ";",allow_whitespace => 1, allow_loose_quotes => 1,quote_char => '"',escape_char => "\\" });
-    return $self;
-}
-
-
 # Name of this command
 sub name { "bundle" }
 
