@@ -96,6 +96,12 @@ sub services {
     return $self->{service}->{list};
 }
 
+sub packages {
+    my $self = shift;
+    $self->_update_packages(@_);
+    return $self->{package}->{list};
+}
+
 # Return a hashref with symbolic names as keys 
 # and the ids as values
 sub bundle_symbolic_names { 
@@ -296,19 +302,89 @@ sub _update_bundles {
     }
 }
 
+sub _update_packages {
+    my $self = shift;
+    my $args = shift;
+    
+    $args = { $args, @_ } unless ref($args) eq "HASH";
+    
+    return if ($self->{package} && $args->{use_cached});
+    # TODO: Update policy
+    # Cache bundle list
+    if (!$self->{package} || $self->_server_state_changed("bundles")) {
+        $self->_fetch_packages;
+    }
+}
+
+
 sub _fetch_bundles {
     my $self = shift;
     my $bundle = $self->_fetch_list("bundleState","listBundles");
-    $bundle->{symbolic_names} = $self->_extract_symbolic_names($bundle->{list});
+    ($bundle->{symbolic_names},$bundle->{ids}) = $self->_extract_symbolic_names($bundle->{list});
     $self->{bundle} = $bundle;    
 }
 
 sub _fetch_services {
     my $self = shift;
     my $service = $self->_fetch_list("serviceState","listServices");
-    $service->{object_classes} = $self->_extract_object_classes($service->{list});
+    ($service->{object_classes},$service->{ids}) = $self->_extract_object_classes($service->{list});
     $self->{service} = $service;
 }
+
+sub _fetch_packages {
+    my $self = shift;
+    my $package = $self->_fetch_list("packageState","listPackages");
+    $package->{import_export} = $self->_extract_import_export($package->{list});
+    $self->{package} = $package;
+}
+
+sub exporting_bundle {
+    return shift->_exporting_importing_bundle("exporting",@_);
+}
+
+sub importing_bundles {
+    return shift->_exporting_importing_bundle("importing",@_);
+}
+
+sub _exporting_importing_bundle {
+    my $self = shift;
+    my $what = shift;
+    my $package = shift || die "No package given\n";    
+    my $version = shift || die "No version given for $package\n";
+    $self->_update_packages(@_);
+    #print Dumper($self->{package}->{import_export});
+    return $self->{package}->{import_export}->{$package}->{$version}->{$what};
+}
+
+sub _extract_import_export {
+    my $self = shift;
+    my $plist = shift;
+    
+    my $ret = {};
+    for my $v (values %{$plist}) {
+        die "Internal: No version found for ",$v->{Name},"\n" unless $v->{Version};
+        # We are using the chached bundle names here. Should be ok.
+        $ret->{$v->{Name}}->{$v->{Version}} = 
+            {              
+             importing => 
+             [ 
+              map { 
+                    { 
+                      id => $_, 
+                      name => $self->{bundle}->{ids}->{$_}
+                    }
+                } 
+              @{$v->{ImportingBundles}}
+             ],
+             exporting => { 
+                           id => $v->{ExportingBundle},
+                           name => $self->{bundle}->{ids}->{$v->{ExportingBundle}}
+                          }
+            };
+    }
+    return $ret;
+}
+
 
 sub _fetch_list {
     my $self = shift;
@@ -316,7 +392,6 @@ sub _fetch_list {
     my $ret = {};
     $ret->{list} = $self->execute($self->_mbean_name($mbean),$operation);
     $ret->{timestamp} = time;
-    $ret->{ids} = { map { $_->{Identifier} => 1 } values %{$ret->{list}} };
     return $ret;
 }
 
@@ -330,28 +405,32 @@ sub _server_state_changed {
 sub _extract_symbolic_names {
     my $self = shift;
     my $bundles = shift;
-    my $ret = {};
+    my $names = {};
+    my $ids = {};
     for my $e (keys %$bundles) {
         my $sym = $bundles->{$e}->{SymbolicName};
         next unless $sym;
         my $id = $bundles->{$e}->{Identifier};
-        $ret->{$sym} = $id;
+        $names->{$sym} = $id;
+        $ids->{$id} = $sym;
     }
-    return $ret;
+    return ($names,$ids);
 }
 
 sub _extract_object_classes {
     my $self = shift;
     my $services = shift;
-    my $ret = {};
+    my $cl = {};
+    my $ids = {};
     for my $s (values %$services) {
         my $classes = $s->{objectClass};
         next unless $classes;
         $classes = [ $classes ] unless ref($classes) eq "ARRAY";
         my $id = $s->{Identifier};
-        map { $ret->{$_} = $id } @$classes;
+        map { $cl->{$_} = $id } @$classes;
+        $ids->{$id} = $classes;
     }
-    return $ret;
+    return ($cl,$ids);
 }
 
 1;

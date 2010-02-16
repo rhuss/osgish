@@ -88,7 +88,8 @@ sub _init {
     $self->{color_theme} = { 
                             host => YELLOW,
                             bundle_active => GREEN,
-                            bundle_inactive => RED,
+                            bundle_installed => RED,
+                            bundle_resolved => YELLOW,
                             service_id => GREEN,
                             service_interface => undef,
                             service_using => RED,
@@ -99,7 +100,8 @@ sub _init {
                             package_resolved => GREEN,
                             package_optional => YELLOW,
                             package_version => CYAN,
-                            package_source => RED,
+                            package_imported_from => RED,
+                            package_exported_to => RED,
                             bundle_info_id => RED,
                             header_name => YELLOW,
                             header_value => ""
