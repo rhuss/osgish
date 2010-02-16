@@ -85,27 +85,51 @@ sub _init {
     $self->{term} = $term;
     $term->{term}->ornaments(0);
     # Initial theme
-    $self->{color_theme} = { 
-                            host => YELLOW,
-                            bundle_active => GREEN,
-                            bundle_installed => RED,
-                            bundle_resolved => YELLOW,
-                            service_id => GREEN,
-                            service_interface => undef,
-                            service_using => RED,
-                            prompt_context => CYAN,
-                            prompt_empty => RED,
-                            upload_installed => GREEN,
-                            upload_uninstalled => RED,
-                            package_resolved => GREEN,
-                            package_optional => YELLOW,
-                            package_version => CYAN,
-                            package_imported_from => RED,
-                            package_exported_to => RED,
-                            bundle_info_id => RED,
-                            header_name => YELLOW,
-                            header_value => ""
-                           };
+    my $theme_light = { 
+                       host => YELLOW,
+                       bundle_active =>  GREEN . ON_WHITE,
+                       bundle_installed => RED,
+                       bundle_resolved => DARK . YELLOW,
+                       service_id => DARK . GREEN,
+                       service_interface => undef,
+                       service_using => RED,
+                       prompt_context => BLUE,
+                       prompt_empty => RED,
+                       upload_installed => DARK . GREEN,
+                       upload_uninstalled => RED,
+                       package_resolved => DARK . GREEN,
+                       package_optional => DARK . YELLOW,
+                       package_version => BLUE,
+                       package_imported_from => RED,
+                       package_exported_to => RED,
+                       bundle_info_id => RED,
+                       header_name => DARK . YELLOW,
+                       header_value => ""
+                      };
+    my $theme_dark = { 
+                      host => YELLOW,
+                      bundle_active => GREEN,
+                      bundle_installed => RED,
+                      bundle_resolved => YELLOW,
+                      service_id => GREEN,
+                      service_interface => undef,
+                      service_using => RED,
+                      prompt_context => CYAN,
+                      prompt_empty => RED,
+                      upload_installed => GREEN,
+                      upload_uninstalled => RED,
+                      package_resolved => GREEN,
+                      package_optional => YELLOW,
+                      package_version => CYAN,
+                      package_imported_from => RED,
+                      package_exported_to => RED,
+                      bundle_info_id => RED,
+                      header_name => YELLOW,
+                      header_value => ""
+                     };
+    
+    $self->{color_theme} = $theme_dark;
+
     # Force pipe, quit if less than a screen-full.
     my @args = (
                 '-f',  # force, needed for color output
