@@ -29,7 +29,7 @@ sub connect_to_server {
             print "Invalid URL $server\n";
             return;
         }
-        $name ||= $self->prepare_server_name($server);
+        $name ||= $self->_prepare_server_name($server);
         my $entry = { name => $name, url => $server };
         push @{$self->{server_list}},$entry;
         $self->{server_map}->{$name} = $entry;
@@ -38,10 +38,10 @@ sub connect_to_server {
     my $osgish = $self->{osgish};
     my ($old_server,$old_agent) = ($self->server,$osgish->agent);
     eval { 
-        my $agent = $self->_create_agent($server) || die "Unknown $server (not an alias nor a proper URL).\n";;
+        my $agent = $self->_create_agent($s->{name}) || die "Unknown $server (not an alias nor a proper URL).\n";;
         $agent->init();
         $osgish->agent($agent);
-        $self->{server} = $server;
+        $self->{server} = $s->{name};
         $osgish->{last_error} = undef;
     };
     if ($@) {
