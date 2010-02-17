@@ -67,7 +67,7 @@ sub cmd_service_list {
         my $nr = 0;
         for my $s (sort { $a->{Identifier} <=> $b->{Identifier} } @{$filtered_services}) {
             my $id = $s->{Identifier};
-            my ($c_id,$c_interf,$c_using,$r) = $osgish->color("service_id","service_interface","service_using",RESET);
+            my ($c_id,$c_interf,$c_using,$r) = $osgish->color("service_id","service_interface","bundle_info_id",RESET);
             my $using_bundles = $s->{UsingBundles} || [];
             my $using = $using_bundles ? join (", ",sort { $a <=> $b } @$using_bundles) : "";
             my $bundle_id = $s->{BundleIdentifier};

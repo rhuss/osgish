@@ -144,25 +144,24 @@ sub cmd_bundle_list {
         print "Not connected to a server\n" and return unless $agent;
         my ($opts,@filters) = $self->extract_command_options(["s!","i!","e!","h!"],@_);
         my $bundles = $agent->bundles;
-        my $text = sprintf("%4.4s   %-11.11s %3s %s\n","Id","State","Lev","Name");
+        my $text = sprintf("%4.4s   %-11.11s  %3s %s\n","Id","State","Lev","Name");
         $text .= "-" x 87 . "\n";
         my $nr = 0;
         
         my $filtered_bundles = $self->_filter_bundles($bundles,@filters);
         return unless @$filtered_bundles;
-        
         if (@$filtered_bundles == 1) {
             # Print single info for bundle
             $self->print_bundle_info($filtered_bundles->[0],$opts);
         } else {
             for my $b (sort { $a->{Identifier} <=> $b->{Identifier} } @$filtered_bundles) {
                 my $id = $b->{Identifier};
-                my ($reset) = $osgish->color(RESET);
+                my ($c_frag,$reset) = $osgish->color("bundle_fragment",RESET);
                 my $state = lc $b->{State};
                 my $color = $self->_bundle_state_color($b);
                 my $state = $self->_state_info($b);
                 my $level = $b->{StartLevel};
-                
+                my $fragment = $b->{Fragment} eq "true" ?  $c_frag . "F" . $reset : " ";
                 my $name = $b->{Headers}->{'[Bundle-Name]'}->{Value};
                 my $sym_name = $b->{SymbolicName};
                 my $version = $b->{Version};
@@ -172,7 +171,7 @@ sub cmd_bundle_list {
                     $name || $sym_name || $location;
                 $desc .= " ($version)" if $version && $version ne "0.0.0";
                 
-                $text .= sprintf "%s%4d   %-11s%s %3d %s%s%s\n",$color,$id,$state,$reset,$level,$desc; 
+                $text .= sprintf "%s%4d   %-11s%s %s%3d %s%s%s\n",$color,$id,$state,$reset,$fragment,$level,$desc; 
                 $nr++;
             }
             $self->print_paged($text,$nr);
@@ -304,20 +303,23 @@ sub cmd_bundle_refresh {
 sub print_bundle_info {
     my $self = shift;
     my $osgish = $self->osgish;
-    
+    my $agent = $self->agent;
+
     my $bu = shift;
     my $opts = shift;
     my $txt = "";
 
-    $self->_dump_main_info(\$txt,$bu);
+    $self->_dump_main_info(\$txt,$bu,$opts);
     $txt .= "\n";
 
     my $imports = $self->_extract_imports($bu->{ImportedPackages},$bu->{Headers},$opts->{i});
     $self->_dump_imports(\$txt,$imports,$opts);
 
-
     my $exports = $self->_extract_exports($bu->{ExportedPackages},$opts->{e});
     $self->_dump_exports(\$txt,$exports,$opts);
+
+
+    $self->_dump_services(\$txt,$bu,$opts);
 
     $self->_dump_headers(\$txt,$bu->{Headers}) if ($opts->{h});
 
@@ -326,21 +328,133 @@ sub print_bundle_info {
     #print Dumper($bu);
 }
 
+sub _extract_services {
+    my $self = shift;
+    my $ids = shift;
+    my $agent = $self->agent;
+    my $ret = {};
+    for my $id (@$ids) {
+        my $service = $agent->service($id);
+        $ret->{$id} = { 
+                       id => $id,
+                       class => $service->{classes}->[0],
+                       bundle => $service->{bundle},
+                       using => $service->{using}
+                      };
+    }
+    return $ret;
+}
+
+sub _dump_services {
+    my $self = shift;
+    my $ret = shift;
+    my $bu = shift;
+    my $opts = shift;
+    my $osgish = $self->osgish;
+    my $agent = $self->agent;
+
+    my $s = "";
+    my $services = $agent->services; # Update if necessary
+    my $services = $self->_extract_services($bu->{RegisteredServices});
+    my ($c_bundle,$c_using,$c_registered,$c_reset) = $osgish->color("bundle_info_id","service_using","service_registered",RESET);
+    my $label = " Registered:";
+    for my $id (keys %{$services}) {
+        #print Dumper($services->{$id});
+        my @bundles = @{$services->{$id}->{using}};
+        my $class = $services->{$id}->{class};
+        if ($opts->{s}) {
+            if (@bundles) {
+                my @names = map { $agent->bundle_name($_,use_cached => 1) } @bundles;
+                $s .= sprintf("%-14.14s %3.3s: %s -> %s\n",$label,$id,$c_registered . $class . $c_reset,$c_bundle . shift(@names) . $c_reset);
+                my $indent = " " x (24 + length($class));
+                while (@names) {
+                    $s .= $indent . $c_bundle . (shift @names) . $c_reset . "\n";
+                }               
+            } else {
+                $s .= sprintf("%-14.14s %3.3s: %s\n",$label,$id,$class);
+            }
+        } else {
+            #my @bundles = map { $c_ps . $_->{id} . $c_re } @{$val->{using}};
+            my $src = "";
+            my $c = $class;
+            if (@bundles) {
+                my $txt = join ", ", map { $c_bundle . $_ . $c_reset } @bundles;
+                $src = " -> " . $txt;
+                $c = $c_registered . $class . $c_reset;
+            }
+            $s .= sprintf("%-14.14s %3.3s: %s%s\n",$label,$id,$c,$src);
+        }
+        $label = "";
+    }
+    $services = $self->_extract_services($bu->{ServicesInUse});
+    $label = " Using:";
+    for my $id (keys %{$services}) {
+        my $bundle = $services->{$id}->{bundle};
+        $bundle = $agent->bundle_name($bundle,use_cached => 1) if $opts->{s};
+        $s .= sprintf("%-14.14s %3.3s: %s <- %s\n",$label,$id,$c_using . $services->{$id}->{class} . $c_reset,$c_bundle . $bundle . $c_reset);
+        $label = "";
+    }
+
+    $$ret .= "\nServices:\n" . $s if length $s;
+}
+
 sub _dump_main_info {
     my $self = shift;
     my $ret = shift;
     my $bu = shift;
+    my $opts = shift;
     my $osgish = $self->osgish;
+    my $agent = $self->agent;
 
     my $name = $bu->{Headers}->{'[Bundle-Name]'}->{Value};
-    my ($c_id,$c_reset) = $osgish->color("bundle_info_id",RESET);    
+    my ($c_id,$c_fragment,$c_reset) = $osgish->color("bundle_info_id","bundle_fragment",RESET);    
     my $sym = $bu->{SymbolicName} || $bu->{Location};
     my $color = $self->_bundle_state_color($bu);
+    my $fragment = $bu->{Fragment} eq "true" ? "(" . $c_fragment . "Fragment" . $c_reset . ")" : "";
     my $state = "[" . $color . $self->_state_info($bu) . $c_reset . "]";
     $sym = $color . $sym . $c_reset;
     $$ret .= sprintf("Name:          %s %s\n",$c_id.$bu->{Identifier}.$c_reset,$name ? $name : $sym) if $name;
-    $$ret .= sprintf("               %s %s\n",$name ? $sym : "",$state);
-    $$ret .= sprintf("Location:      %s\n",$bu->{Location},$self->format_date($bu->{LastModified}/1000));
+    $$ret .= sprintf("               %s %s %s\n",$name ? $sym : "",$state,$fragment);
+    $$ret .= sprintf("Location:      %s (%s)\n",$bu->{Location},$self->format_date($bu->{LastModified}/1000));
+    $self->_add_fragment($ret,$bu->{Hosts},"Hosts:");
+    $self->_add_fragment($ret,$bu->{Fragments},"Fragments:");
+
+    my @flags = ();
+    for my $flag ("RemovalPending", "PersistentlyStarted", "Required") {
+        push @flags,$flag if $bu->{$flag} eq "true";
+    } 
+    if (@flags) {
+        $$ret .= sprintf("%-14.14s %s\n","Flags:",join ", ",@flags);
+    }
+    #print Dumper($bu);
+}
+
+sub _add_fragment {
+    my $self = shift;
+    my $ret = shift;
+    my $list = shift;
+    my $label = shift;
+    my $osgish = $self->osgish;
+    my $agent = $self->agent;
+    my ($c_id,$c_fragment,$c_reset) = $osgish->color("bundle_info_id","bundle_fragment",RESET);    
+    
+    if ($list && @{$list}) {
+        for my $f (@$list) {
+            my $name = $c_fragment . $agent->bundle_name($f,use_cached => 1) . $c_reset . " (${c_id}${f}${c_reset})";
+            $$ret .= sprintf("%-14.14s %s\n",$label,$name);
+            $label = "";
+        }
+    }
+}
+
+sub _header {
+    my $self = shift;
+    my $bu = shift;
+    my $key = shift;
+    my $headers = $bu->{Headers};
+    my @prop  = grep { $_->{Key} eq $key } values %$headers;
+    return "" unless @prop;
+    return (shift @prop)->{Value};
 }
 
 sub _dump_imports {

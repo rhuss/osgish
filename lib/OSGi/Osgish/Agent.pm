@@ -116,6 +116,13 @@ sub bundle_ids {
     return sort keys %{$self->{bundle}->{ids}};
 }
 
+sub bundle_name {
+    my $self = shift;
+    my $id = shift;
+    $self->_update_bundles(@_);
+    return $self->{bundle}->{ids}->{$id};
+}
+
 sub service_object_classes {
     my $self = shift;
     $self->_update_services(@_);
@@ -125,9 +132,15 @@ sub service_object_classes {
 sub service_ids {
     my $self = shift;
     $self->_update_services(@_);
-    return sort keys %{$self->{service}->{ids}};
+    return [sort keys %{$self->{service}->{ids}}];
 }
 
+sub service { 
+    my $self = shift;
+    my $id = shift;
+    $self->_update_services(@_);
+    return $self->{service}->{ids}->{$id};
+}
 
 sub resolve_bundle {
     shift->_bulk_bundle_cmd("resolveBundle","resolveBundles",@_);
@@ -253,8 +266,10 @@ sub _prepare_error_message {
     return "Connection refused.\n" if $resp->{error} =~ /Connection\s+refused/i;
 
     if ($st) {
-        if ($st =~ /BundleException:\s*([^\n]+)/s) {
-            return $1;
+        if ($st =~ /BundleException:\s*([^\n]+)\.?/s) {
+            my $txt = $1;
+            chop $txt while $txt =~ /\.$/;
+            return $txt;
         }
     }
     return "Server Error: " . $resp->{error};
@@ -428,7 +443,11 @@ sub _extract_object_classes {
         $classes = [ $classes ] unless ref($classes) eq "ARRAY";
         my $id = $s->{Identifier};
         map { $cl->{$_} = $id } @$classes;
-        $ids->{$id} = $classes;
+        $ids->{$id} = { 
+                       classes => $classes, 
+                       bundle => $s->{BundleIdentifier},
+                       using => $s->{UsingBundles}
+                      };
     }
     return ($cl,$ids);
 }
