@@ -335,7 +335,17 @@ sub _update_packages {
 sub _fetch_bundles {
     my $self = shift;
     my $bundle = $self->_fetch_list("bundleState","listBundles");
-    ($bundle->{symbolic_names},$bundle->{ids}) = $self->_extract_symbolic_names($bundle->{list});
+    my $names = {};
+    my $ids = {};
+    my $bundles =  $bundle->{list};
+    for my $e (keys %{$bundles}) {
+        my $b = $bundles->{$e};
+        my $sym = $b->{SymbolicName};
+        my $id = $b->{Identifier};
+        $names->{$sym} = $id if $sym;
+        $ids->{$id} = $sym || $b->{Name} || $b->{Location};
+    }
+    ($bundle->{symbolic_names},$bundle->{ids}) =  ($names,$ids);
     $self->{bundle} = $bundle;    
 }
 
@@ -415,21 +425,6 @@ sub _server_state_changed {
     my $type = shift;
     my $state = $self->execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$self->{bundle}->{timestamp});
     return $state eq "true" ? 1 : 0;
-}
-
-sub _extract_symbolic_names {
-    my $self = shift;
-    my $bundles = shift;
-    my $names = {};
-    my $ids = {};
-    for my $e (keys %$bundles) {
-        my $sym = $bundles->{$e}->{SymbolicName};
-        next unless $sym;
-        my $id = $bundles->{$e}->{Identifier};
-        $names->{$sym} = $id;
-        $ids->{$id} = $sym;
-    }
-    return ($names,$ids);
 }
 
 sub _extract_object_classes {

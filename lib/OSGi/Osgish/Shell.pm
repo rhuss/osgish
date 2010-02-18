@@ -103,21 +103,23 @@ sub _init {
                        package_version => BLUE,
                        package_imported_from => RED,
                        package_exported_to => RED,
-                       bundle_info_id => RED,
+                       bundle_id => RED,
                        header_name => DARK . YELLOW,
                        header_value => ""
                       };
     my $theme_dark = { 
                       host => YELLOW,
+                      bundle_id => RED,
                       bundle_active => GREEN,
                       bundle_installed => RED,
                       bundle_resolved => YELLOW,
                       bundle_fragment => CYAN,
                       bundle_referenced => YELLOW,
+                      bundle_version => CYAN,
                       service_id => GREEN,
                       service_interface => undef,
-                      service_using => GREEN,
-                      service_registered => GREEN,
+                      service_using => YELLOW,
+                      service_registered => YELLOW,
                       prompt_context => CYAN,
                       prompt_empty => RED,
                       upload_installed => GREEN,
@@ -127,7 +129,6 @@ sub _init {
                       package_version => CYAN,
                       package_imported_from => RED,
                       package_exported_to => RED,
-                      bundle_info_id => RED,
                       header_name => YELLOW,
                       header_value => ""
                      };
