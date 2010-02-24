@@ -143,24 +143,34 @@ sub service {
 }
 
 sub resolve_bundle {
-    shift->_bulk_bundle_cmd("resolveBundle","resolveBundles",@_);
+    my $self = shift;
+    $self->_update_bundles();
+    $self->_bulk_bundle_cmd("resolveBundle","resolveBundles",@_);
 }
 
 
 sub start_bundle {
-    shift->_bulk_bundle_cmd("startBundle","startBundles",@_);
+    my $self = shift;
+    $self->_update_bundles();
+    $self->_bulk_bundle_cmd("startBundle","startBundles",@_);
 }
 
 sub stop_bundle {
-    shift->_bulk_bundle_cmd("stopBundle","stopBundles",@_);
+    my $self = shift;
+    $self->_update_bundles();
+    $self->_bulk_bundle_cmd("stopBundle","stopBundles",@_);
 }
 
 sub uninstall_bundle {
-    shift->_bulk_bundle_cmd("uninstallBundle","uninstallBundles",@_);
+    my $self = shift;
+    $self->_update_bundles();
+    $self->_bulk_bundle_cmd("uninstallBundle","uninstallBundles",@_);
 }
 
 sub refresh_bundle {
-    shift->_bulk_bundle_cmd("refreshPackages(long)","refreshPackages([J)",@_);
+    my $self = shift;
+    $self->_update_bundles();
+    $self->_bulk_bundle_cmd("refreshPackages(long)","refreshPackages([J)",@_);
 }
 
 sub _bulk_bundle_cmd {
@@ -263,7 +273,7 @@ sub _prepare_error_message {
     my $self = shift;
     my $resp = shift;
     my $st = $resp->stacktrace;
-    return "Connection refused.\n" if $resp->{error} =~ /Connection\s+refused/i;
+    return "Connection refused" if $resp->{error} =~ /Connection\s+refused/i;
 
     if ($st) {
         if ($st =~ /BundleException:\s*([^\n]+)\.?/s) {
@@ -271,6 +281,9 @@ sub _prepare_error_message {
             chop $txt while $txt =~ /\.$/;
             return $txt;
         }
+    }
+    if ($resp->{error} =~ /^(\d{3} [^\n]+)\n/m) {
+        return $1;
     }
     return "Server Error: " . $resp->{error};
 }
@@ -297,7 +310,7 @@ sub _update_services {
     # TODO: Update policy
 
     # Cache bundle list
-    if ($self->_server_state_changed("services")) {
+    if ($self->_server_state_changed("services",$self->{service}->{timestamp})) {
         $self->_fetch_services;
     }    
 }
@@ -312,7 +325,7 @@ sub _update_bundles {
     # TODO: Update policy
 
     # Cache bundle list
-    if ($self->_server_state_changed("bundles")) {
+    if ($self->_server_state_changed("bundles",$self->{bundle}->{timestamp})) {
         $self->_fetch_bundles;
     }
 }
@@ -322,11 +335,11 @@ sub _update_packages {
     my $args = shift;
     
     $args = { $args, @_ } unless ref($args) eq "HASH";
-    
     return if ($self->{package} && $args->{use_cached});
     # TODO: Update policy
     # Cache bundle list
-    if (!$self->{package} || $self->_server_state_changed("bundles")) {
+    if (!$self->{package} || $self->_server_state_changed("packages",$self->{bundle}->{timestamp})) {
+        #print "FETCH PKG\n";
         $self->_fetch_packages;
     }
 }
@@ -423,7 +436,8 @@ sub _fetch_list {
 sub _server_state_changed {
     my $self = shift;
     my $type = shift;
-    my $state = $self->execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$self->{bundle}->{timestamp});
+    my $timestamp = shift;
+    my $state = $self->execute($OSGISH_SERVICE_NAME,"hasStateChanged",$type,$timestamp);
     return $state eq "true" ? 1 : 0;
 }
 

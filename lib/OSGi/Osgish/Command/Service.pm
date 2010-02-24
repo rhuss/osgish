@@ -36,7 +36,7 @@ sub sub_commands {
         { 
          "ls" => { 
                   desc => "List all services",
-                  proc => $self->cmd_service_list,
+                  proc => $self->cmd_list,
                   args => $self->complete->services(no_ids => 1) 
                  },
 #         "bls" => { 
@@ -50,7 +50,7 @@ sub sub_commands {
 
 # =================================================================================================== 
 
-sub cmd_service_list { 
+sub cmd_list { 
     my $self = shift;
     return sub {
         my $osgish = $self->osgish;
@@ -59,9 +59,12 @@ sub cmd_service_list {
         my $services = $osgi->services;
         my ($opts,@filters) = $self->extract_command_options(["u=s","b=s"],@_);
         
-        my $filtered_services = $self->filter_services($services,$opts,@filters);
+        my $filtered_services = $self->_filter_services($services,$opts,@filters);
         return unless @$filtered_services;
-        
+        if (@$filtered_services == 1) {
+            $self->print_service_info($filtered_services->[0],$opts);
+            return;
+        }
         my $text = sprintf("%4.4s  %-62.62s  %5.5s | %s\n","Id","Classes","Bd-Id","Using bundles");
         $text .= "-" x 76 . "+" . "-" x 24 . "\n";
         my $nr = 0;
@@ -82,8 +85,54 @@ sub cmd_service_list {
     }
 }
 
+sub print_service_info {
+    my $self = shift;
+    my $service = shift;
+    my $opts = shift;
+    my $agent = $self->agent;
+    my $osgish = $self->osgish;
+
+    my $id = $service->{Identifier};
+    my $bundle_id = $service->{BundleIdentifier};
+    my $bundle_using = $service->{UsingBundles};
+    my $classes = $service->{objectClass};
+    
+    my ($c_id,$c_class,$c_bid,$c_bversion,$c_prop_val,$c_prop_key,$c_reset) = 
+      $osgish->color("service_id","service_interface","bundle_id","bundle_version","header_value","header_name",RESET);    
+
+    my %props = 
+      map { $_->{Key} => { val => $_->{Value}, type => $_->{Type} }  }
+        grep { $_->{Key} !~ /^(objectClass|service\.id)$/ }
+          values %{$service->{Properties}};
+    my $ret = "";
+    #$ret .= sprintf("%-14.14s %s\n","Id:",$c_id . $id . $c_reset);
+    $ret .= sprintf("%-14.14s %s (%s)\n","Bundle:",$c_bid . $agent->bundle_name($bundle_id,use_cached => 1) . $c_reset,$bundle_id);
+    if ($bundle_using && @$bundle_using) {
+        my $label = "Used by:";
+        for my $u (@$bundle_using) {
+            $ret .= sprintf("%-14.14s %s (%s)\n",$label,$c_bid . $agent->bundle_name($u,use_cached => 1) . $c_reset,$u);
+            $label = "";
+        }
+    }
+    if ($classes && @$classes) {
+        my $label = "Classes:";
+        for my $c (sort @$classes) {
+            $ret .= sprintf("%-14.14s %s\n",$label,$c_class . $c . $c_reset);
+            $label = "";
+        }
+    }
+    if (%props) {
+        my $label = "Properties:";
+        for my $k (sort keys %props) {
+            $ret .= sprintf("%-14.14s %s = %s\n",$label,$c_prop_key . $k . $c_reset,$c_prop_val . $props{$k}->{val} . $c_reset);
+            $label = "";
+        }
+    }
+    $self->print_paged($ret);
+}
+
 # Filter services according to one or more criteria
-sub filter_services {
+sub _filter_services {
     my $self = shift;
     my ($services,$opts,@filters) = @_;
     my %found = ();
@@ -115,7 +164,8 @@ sub filter_services {
         for my $f (@filters) {
             my $regexp = $self->convert_wildcard_pattern_to_regexp($f);
             for my $s (@$rest) {
-                if (grep { $_ =~ $regexp } @{$s->{objectClass}}) {
+                if ( (grep { $_ =~ $regexp } @{$s->{objectClass}}) || 
+                    ($f =~ /^\d+$/ && $s->{Identifier} == $f)) {
                     $found{$s->{Identifier}} = $s;
                 } elsif ($filtered) {
                     delete $found{$s->{Identifier}};

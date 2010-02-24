@@ -33,6 +33,30 @@ provides:
   OSGi::Osgish:
     file: lib/OSGi/Osgish.pm
     version: v0.1.0_3
+  OSGi::Osgish::Agent:
+    file: lib/OSGi/Osgish/Agent.pm
+  OSGi::Osgish::Agent::Upload:
+    file: lib/OSGi/Osgish/Agent/Upload.pm
+  OSGi::Osgish::Command:
+    file: lib/OSGi/Osgish/Command.pm
+  OSGi::Osgish::Command::Bundle:
+    file: lib/OSGi/Osgish/Command/Bundle.pm
+  OSGi::Osgish::Command::Global:
+    file: lib/OSGi/Osgish/Command/Global.pm
+  OSGi::Osgish::Command::Server:
+    file: lib/OSGi/Osgish/Command/Server.pm
+  OSGi::Osgish::Command::Service:
+    file: lib/OSGi/Osgish/Command/Service.pm
+  OSGi::Osgish::Command::Upload:
+    file: lib/OSGi/Osgish/Command/Upload.pm
+  OSGi::Osgish::CommandHandler:
+    file: lib/OSGi/Osgish/CommandHandler.pm
+  OSGi::Osgish::CompletionHandler:
+    file: lib/OSGi/Osgish/CompletionHandler.pm
+  OSGi::Osgish::ServerHandler:
+    file: lib/OSGi/Osgish/ServerHandler.pm
+  OSGi::Osgish::Shell:
+    file: lib/OSGi/Osgish/Shell.pm
 generated_by: Module::Build version 0.35
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html

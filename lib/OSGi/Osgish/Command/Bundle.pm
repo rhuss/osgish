@@ -74,42 +74,42 @@ sub sub_commands {
     return {
             "ls" => { 
                      desc => "List bundles",
-                     proc => $self->cmd_bundle_list,
+                     proc => $self->cmd_list,
                      args => $self->complete->bundles(no_ids => 1)
                     },
             "start" => { 
                         desc => "Start bundles",
-                        proc => $self->cmd_bundle_start,
+                        proc => $self->cmd_start,
                         args => $self->complete->bundles
                        },
             "stop" => { 
                        desc => "Stop bundles",
-                       proc => $self->cmd_bundle_stop,
+                       proc => $self->cmd_stop,
                        args => $self->complete->bundles
                       },
             "resolve" => {
                           desc => "Resolve bundles",
-                          proc => $self->cmd_bundle_resolve,
+                          proc => $self->cmd_resolve,
                           args => $self->complete->bundles
                          },
             "update" => {
                          desc => "Update a bundle optionally from a new location",
-                         proc => $self->cmd_bundle_update,
+                         proc => $self->cmd_update,
                          args => $self->complete->bundles
                         },
             "install" => {
                             desc => "Install a bundle",
-                            proc => $self->cmd_bundle_install,
+                            proc => $self->cmd_install,
                           #args => $self->complete->bundles
                            },
             "uninstall" => {
                             desc => "Uninstall bundles",
-                            proc => $self->cmd_bundle_uninstall,
+                            proc => $self->cmd_uninstall,
                             args => $self->complete->bundles
                            },
             "refresh" => {
                           desc => "Refresh bundles",
-                          proc => $self->cmd_bundle_refresh,
+                          proc => $self->cmd_refresh,
                           args => $self->complete->bundles
                         }
            };
@@ -118,7 +118,7 @@ sub sub_commands {
 # =================================================================================================== 
 
 
-=item cmd_bundle_list
+=item cmd_list
 
 List commands which can filter bundles by wildcard and knows about the
 following options:
@@ -135,7 +135,7 @@ If a single bundle is given as argument its details are shown.
 
 =cut
 
-sub cmd_bundle_list {
+sub cmd_list {
     my $self = shift; 
     
     return sub {
@@ -182,13 +182,13 @@ sub cmd_bundle_list {
 }
 
 
-=item cmd_bundle_start
+=item cmd_start
 
 Resolve one or more bundles by its id or symbolicname
 
 =cut 
 
-sub cmd_bundle_resolve {
+sub cmd_resolve {
     my $self = shift;
     return sub { 
         my @args = @_;
@@ -197,27 +197,30 @@ sub cmd_bundle_resolve {
 }
 
 
-=item cmd_bundle_start
+=item cmd_start
 
 Start one or more bundles by its id or symbolicname
 
 =cut 
 
-sub cmd_bundle_start {
+sub cmd_start {
     my $self = shift;
     return sub { 
         my @args = @_;
-        $self->agent->start_bundle(@args);
+        my $agent = $self->agent;
+        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
+        die "No bundle to start given\n" unless @$filtered_bundles;
+        $agent->start_bundle(@$filtered_bundles);
     }
 }
 
-=item cmd_bundle_stop
+=item cmd_stop
 
 Stop one or more bundles by its id or symbolicname
 
 =cut 
 
-sub cmd_bundle_stop {
+sub cmd_stop {
     my $self = shift;
     return sub { 
         my @args = @_;
@@ -225,13 +228,13 @@ sub cmd_bundle_stop {
     }
 }
 
-=item cmd_bundle_update
+=item cmd_update
 
 Update a bundle from its current location
 
 =cut
 
-sub cmd_bundle_update {
+sub cmd_update {
     my $self = shift;
     return sub {
         my ($opts,@filters) = $self->extract_command_options(["l=s"],@_);
@@ -256,27 +259,33 @@ sub cmd_bundle_update {
     }
 }
 
-=item cmd_bundle_install
+=item cmd_install
 
 Install one or more bundles
 
 =cut
 
-sub cmd_bundle_install {
+sub cmd_install {
     my $self = shift;
+    my $osgish = $self->osgish;
     return sub {
         my @args = @_;
-        $self->agent->install_bundle(@args);
+        my $ret = $self->agent->install_bundle(@args);
+        my ($color,$reset) = $osgish->color("bundle_id",RESET);
+        if (!ref($ret)) {
+            print "Installed bundle " . $color . $ret . $reset . ".\n";
+        }
+        #print Dumper($ret);
     }
 }
 
-=item cmd_bundle_uninstall
+=item cmd_uninstall
 
 Uninstall one or more bundles
 
 =cut
 
-sub cmd_bundle_uninstall {
+sub cmd_uninstall {
     my $self = shift;
     return sub {
         my @args = @_;
@@ -284,13 +293,13 @@ sub cmd_bundle_uninstall {
     }
 }
 
-=item cmd_bundle_refresh
+=item cmd_refresh
 
 Refresh one or more bundles
 
 =cut
 
-sub cmd_bundle_refresh {
+sub cmd_refresh {
     my $self = shift;
     return sub {
         my @args = @_;
@@ -359,7 +368,7 @@ sub _dump_services {
     my $label = " Registered:";
     for my $id (keys %{$services}) {
         #print Dumper($services->{$id});
-        my @bundles = @{$services->{$id}->{using}};
+        my @bundles = @{$services->{$id}->{using} || []};
         my $class = $services->{$id}->{class};
         $s .= $self->_dump_bundle_using($class,$services->{$id}->{using},
                                           {label => $label, use_sym => $opts->{s},color => $c_using,
@@ -415,7 +424,7 @@ sub _dump_bundle_using {
     my $len = $args->{length} || length($main . $prefix);
     my $main_c = $args->{color} ? $args->{color} . $main . $c_reset : $main;
     if ($args->{use_sym}) {
-        if (@$bundles) {
+        if ($bundles && @$bundles) {
             my @names = map { $agent->bundle_name($_,use_cached => 1) } @$bundles;
             $ret .= sprintf("%-14.14s %s -> %s\n",$args->{label},$prefix . $main_c,
                             $c_bundle . shift(@names) . $c_reset);
@@ -430,7 +439,7 @@ sub _dump_bundle_using {
         #my @bundles = map { $c_ps . $_->{id} . $c_re } @{$val->{using}};
         my $src = "";
         my $c = $main;
-        if (@$bundles) {
+        if ($bundles && @$bundles) {
             my $txt = join ", ", map { $c_bundle . $_ . $c_reset } @$bundles;
             $src = " -> " . $txt;
         }
@@ -486,7 +495,9 @@ sub _add_fragment {
     my ($c_id,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_fragment",RESET);    
     
     if ($list && @{$list}) {
-        for my $f (@$list) {
+        # Host can occur multiple times
+        my %uniq = map { $_ => 1 } @$list;
+        for my $f (keys %uniq ) {
             my $name = $c_fragment . $agent->bundle_name($f,use_cached => 1) . $c_reset . " (${c_id}${f}${c_reset})";
             $$ret .= sprintf("%-14.14s %s\n",$label,$name);
             $label = "";
@@ -511,6 +522,7 @@ sub _dump_imports {
     my $opts = shift;
     my $osgish = $self->osgish;
 
+    #print Dumper($imports);
     my $label = "Imports:";
     my ($c_pr,$c_pv,$c_po,$c_ps,$c_re) = $osgish->color("package_resolved","package_version","package_optional","package_imported_from",RESET);
     for my $k (sort { $a cmp $b } keys %$imports) {
@@ -643,7 +655,7 @@ sub _extract_exports {
         my $e = {};
         $e->{version} = $version;
         if ($lookup_sources) {
-            $e->{using} = $agent->importing_bundles($package,$version,use_cached => !$first);
+            $e->{using} = $agent->importing_bundles($package,$version,use_cached => $first ? undef : 1);
             $first = 0;
         }
         $exports->{$package} = $e;
@@ -697,7 +709,7 @@ sub _split_property {
         my $attrs = {};
         my $directives = {};
         while ($part) {
-            $part =~ s/([^;]*?("[^"]+"[^,]*)*)(\s*;\s*|$)//;
+            $part =~ s/([^;]*?("[^"]+"[^;]*)*)(\s*;\s*|$)//;
             my $sub = $1;
             if ($sub =~ /^(.*):=\"?(.*?)\"?$/) {
                 $directives->{$1} = $2;
