@@ -23,6 +23,7 @@ public class OsgishService implements OsgishServiceMBean, MBeanRegistration, Ser
     // Timestamps for state checks
     private long bundlesLastChanged;
     private long servicesLastChanged;
+    private long packagesLastChanged;
 
     // Tracker to be used for the LogService
     private ServiceTracker logTracker;
@@ -33,8 +34,10 @@ public class OsgishService implements OsgishServiceMBean, MBeanRegistration, Ser
     public OsgishService(BundleContext pBundleContext) {
 
         logTracker = new ServiceTracker(pBundleContext, LogService.class.getName(), null);
-        bundlesLastChanged = getCurrentTime();
-        servicesLastChanged = getCurrentTime();
+        long time = getCurrentTime();
+        bundlesLastChanged = time;
+        servicesLastChanged = time;
+        packagesLastChanged = time;
         bundleContext = pBundleContext;
     }
 
@@ -43,12 +46,14 @@ public class OsgishService implements OsgishServiceMBean, MBeanRegistration, Ser
             return isYoungerThan(bundlesLastChanged,pTimestamp);
         } else if ("services".equals(pWhat)) {
             return isYoungerThan(servicesLastChanged,pTimestamp);
+        } else if ("packages".equals(pWhat)) {
+            return isYoungerThan(packagesLastChanged,pTimestamp);
         }
         return false;
     }
 
-    private boolean isYoungerThan(long pBundlesLastChanged, long pTimestamp) {
-        return pBundlesLastChanged >= pTimestamp;
+    private boolean isYoungerThan(long pLastChanged, long pTimestamp) {
+        return pLastChanged >= pTimestamp;
     }
 
     void log(int level,String message) {
@@ -66,7 +71,9 @@ public class OsgishService implements OsgishServiceMBean, MBeanRegistration, Ser
     }
 
     public void bundleChanged(BundleEvent event) {
-        bundlesLastChanged = getCurrentTime();
+        long time = getCurrentTime();
+        bundlesLastChanged = time;
+        packagesLastChanged = time;
     }
 
     private long getCurrentTime() {
