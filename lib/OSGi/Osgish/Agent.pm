@@ -1,39 +1,4 @@
-=head1 LICENSE
-
-This file is part of osgish.
-
-Osgish is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 2 of the License, or
-(at your option) any later version.
-
-osgish is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with osgish.  If not, see <http://www.gnu.org/licenses/>.
-
-A commercial license is available as well. Please contact roland@cpan.org for
-further details.
-
-=head1 PROFESSIONAL SERVICES
-
-Just in case you need professional support for this module (or JMX or OSGi in
-general), you might want to have a look at www.consol.com Contact
-roland.huss@consol.de for further information (or use the contact form at
-http://www.consol.com/contact/)
-
-=head1 AUTHOR
-
-roland@cpan.org
-
-=cut
-
-
-
-#!/usr/bin/perl
+A#!/usr/bin/perl
 
 =head1 NAME 
 
@@ -53,7 +18,7 @@ use JMX::Jmx4Perl::Request;
 use OSGi::Osgish::Agent::Upload;
 use Data::Dumper;
 
-
+# Osgi EEG MBeans
 my $MBEANS_MAP = 
     { 
      "framework" => { key => "type", version => "1.5", domain => "osgi.core" },
@@ -66,6 +31,7 @@ my $MBEANS_MAP =
      "useradmin" => { key => "service", version => "1.1", domain => "osgi.compendium" }
     };
 
+# Our own MBean for certain state checks
 my $OSGISH_SERVICE_NAME = "osgish:type=Service";
 
 sub new { 
