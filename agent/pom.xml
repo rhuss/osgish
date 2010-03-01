@@ -27,7 +27,9 @@
     <dependency>
       <groupId>org.apache.aries.jmx</groupId>
       <artifactId>org.apache.aries.jmx</artifactId>
-      <version>1.0.0-incubating-SNAPSHOT</version>
+      <!-- Pinned for now until refactorings finished -->
+      <version>1.0.0-incubating-20100220.132454-3</version>
+<!--       <version>1.0.0-incubating-SNAPSHOT</version> -->
     </dependency>
 
     <!-- Dependencies for file-upload -->
@@ -74,7 +76,7 @@
   </dependencies>
 
   <properties>
-    <j4p.version>0.60.0.M1</j4p.version>
+    <j4p.version>0.60.0</j4p.version>
   </properties>
 
   <build>
