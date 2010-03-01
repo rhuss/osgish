@@ -48,9 +48,12 @@ sub new {
     my $class = shift;
     my $osgish = shift || "No osgish object given";    
     my $shell = shift || "No shell given";
+    my $extra = shift;
+    $extra = { $extra, @_ } unless ref($extra) eq "HASH";
     my $self = {
                 osgish => $osgish,
-                shell => $shell
+                shell => $shell,
+                %{$extra}
                };
     $self->{stack} = [];
     bless $self,(ref($class) || $class);

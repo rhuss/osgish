@@ -96,8 +96,10 @@ sub _init {
     my $self = shift;
     $self->{complete} = new OSGi::Osgish::CompletionHandler($self);
     $self->{servers} = new OSGi::Osgish::ServerHandler($self);
-    $self->{shell} = $self->_create_shell;
-    $self->{commands} = new OSGi::Osgish::CommandHandler($self,$self->{shell});
+    my $shell = $self->_create_shell;
+    $self->{shell} = $shell;
+    my $no_color_prompt = $shell->readline ne "Term::ReadLine::Gnu";
+    $self->{commands} = new OSGi::Osgish::CommandHandler($self,$self->{shell},no_color_prompt => $no_color_prompt);
 }
 
 sub _create_shell {
@@ -106,11 +108,11 @@ sub _create_shell {
     if (exists $self->{args}->{color}) {
         $use_color = $self->{args}->{color};
     } elsif (exists $self->{config}->{use_color}) {
-        $use_color = $self->{args}->{color};
+        $use_color = $self->{config}->{use_color};
     } else {
-        $use_color = 1;
-    }
-    return new OSGi::Osgish::Shell(use_color => $use_color);
+        $use_color = "yes";
+    }    
+    return new OSGi::Osgish::Shell(use_color => $use_color =~ /(yes|true|on)$/);
 }
 
 1;

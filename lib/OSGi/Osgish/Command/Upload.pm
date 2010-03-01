@@ -5,6 +5,7 @@ use strict;
 use vars qw(@ISA);
 use Term::ANSIColor qw(:constants);
 use File::Glob ':glob';
+use Data::Dumper;
 
 @ISA = qw(OSGi::Osgish::Command);
 
@@ -34,23 +35,73 @@ sub sub_commands {
     return { 
             "ls" => { 
                      desc => "List upload directory",
-                     proc => $self->cmd_upload_list,
+                     proc => $self->cmd_list,
                     },
             "put" => {
-                      desc => "Upload a file",
-                      proc => $self->cmd_upload_put,
+                      desc => "Upload a bundle",
+                      proc => $self->cmd_put,
                       args => $self->complete->files_extended
                      },
             "rm" => {
-                     desc => "Remove a file",
-                     proc => $self->cmd_upload_delete,
+                     desc => "Remove a bundle",
+                     proc => $self->cmd_delete,
+                     args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
+                    },
+            "install" => {
+                          desc => "Install a bundle",
+                          proc => $self->cmd_install,
+                          args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
+                         },
+            "update" => {
+                     desc => "Update a bundle",
+                     proc => $self->cmd_update,
                      args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
                     },
            };
 }
 
+sub cmd_install {
+    my $self = shift;
+
+    return sub {
+        my $file = shift || die "No file given"; 
+        my $osgish = $self->osgish;
+        my $agent = $osgish->agent;
+        print "Not connected to a server\n" and return unless $agent;
+        my $list = $agent->upload->list;
+        my $uf = $list->{$file} || die "No file $file uploaded\n";
+        my $ret = $agent->install_bundle("file://" . $uf->{canonicalPath});
+        my ($color,$reset) = $osgish->color("bundle_id",RESET);
+        if (!ref($ret)) {
+            print "Installed bundle " . $color . $ret . $reset . ".\n";
+        }
+    }
+}
+
+sub cmd_update {
+    my $self = shift;
+
+    return sub {
+        my $file = shift || die "No file given"; 
+        my $osgish = $self->osgish;
+        my $agent = $osgish->agent;
+        print "Not connected to a server\n" and return unless $agent;
+        my ($color,$reset) = $osgish->color("bundle_id",RESET);
+        if ($file =~ /^\d+$/) {
+            $agent->update_bundle($file);
+            print "Updated bundle " . ($color . $file . $reset) . ".\n";
+        } else {
+            my $list = $agent->upload->list;
+            my $installed = $self->uploaded_installed_bundles($list);
+            my $b_id = $installed->{$file} || die "No bundle $file installed.\n";
+            $agent->update_bundle($b_id);
+            print "Updated bundle $file (" . ($color . $b_id . $reset) . ").\n";
+        }
+    }
+}
+
 # =========================================================================================
-sub cmd_upload_list {
+sub cmd_list {
     my $self = shift;
     return sub {
         my $osgish = $self->osgish;
@@ -75,7 +126,7 @@ sub cmd_upload_list {
     }
 }
 
-sub cmd_upload_put {
+sub cmd_put {
     my $self = shift;
     return sub {
         my $file = shift || die "No file given";
@@ -91,7 +142,7 @@ sub cmd_upload_put {
     }
 }
 
-sub cmd_upload_delete {
+sub cmd_delete {
     my $self = shift;
     return sub {
         my $osgish = $self->osgish;
@@ -117,7 +168,7 @@ sub cmd_upload_delete {
                 next;
             }
             my $error = $osgi->upload->remove($f);
-            print $error ? "rm: $error\n" : "Removed $f\n";
+            print $error ? "rm: $error\n" : "Removed $f.\n";
         }
         $osgi->upload->cache_update;
     }
@@ -126,8 +177,8 @@ sub cmd_upload_delete {
 sub uploaded_installed_bundles {
     my $self = shift;
     my $list = shift;
-    my $osgi = $self->osgish->agent;
-    my $bundles = $osgi->bundles(use_cached => 1);
+    my $osgi = $self->agent;
+    my $bundles = $osgi->bundles();
     my %locations = map { "file://" . $list->{$_}->{canonicalPath} => $_} keys %$list;
     #print Dumper(\%locations);
     my %installed;
@@ -137,6 +188,5 @@ sub uploaded_installed_bundles {
     }
     return \%installed;
 }
-
 
 1;

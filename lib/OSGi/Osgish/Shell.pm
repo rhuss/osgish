@@ -159,5 +159,9 @@ sub _init {
     }
 }
 
-
+sub readline {
+    my $self = shift;
+    my $term = $self->term;
+    return $term->{term}->ReadLine;
+}
 1;

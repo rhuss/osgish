@@ -161,7 +161,7 @@ my $build = $class->new
    license => 'gpl',
 
    requires => {
-                "JMX::Jmx4Perl" => "0.55_2",
+                "JMX::Jmx4Perl" => "0.60",
                 "Data::Dumper" => 0,
                 "Pod::Usage" => 0,
                 "Getopt::Long" => 0,

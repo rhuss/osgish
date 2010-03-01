@@ -3,10 +3,8 @@
 
 INTRODUCTION
 
-  PLEASE NOTE THAT VERSION 0.1 IS A PREVIEW ONLY.
-
   Osgish is command line shell for OSGi. It is based on the Readline
-  Library, Jmx4Perl as OSGi Backend and Aries JMX as OSGi Management
+  Library, Jmx4Perl as OSGi backend and Aries JMX as OSGi Management
   layer, with Perl being the glue.
 
   Highlights of osgish are:
@@ -66,19 +64,20 @@ INSTALLATION
   OS X you can use the package 'p5-term-readline-gnu' from Mac Ports
   to install readline along with the needed module. For Debian, the
   easiest way is to install the package 'libterm-readline-gnu-perl'
-  via apt.
+  via apt. However, the default implementation Term::ReadLine::Perl
+  fits nicely, too.
 
   For the module to work, you need to provision
   "osgi-agent-<version>.jar" to each OSGi container you want to
-  connect to. Refer to you OSGi framework in use how to install a
-  bundle (e.g. by calling 'install' in a OSGi shell or providing the
-  bundle name during startup). This bundle has a dependency on an OSGi
-  HttpService, which need to be available. Some OSGi container (like
-  Glassfish v3) already come with a HttpService installed, for other
-  you need to install one manually. A good choice is the Pax Web
-  (http://wiki.ops4j.org/display/paxweb/Pax+Web) HttpService. Select
-  the pax-web-jetty-bundle when downloading, it contains a all you
-  need.
+  connect to. Refer to your OSGi framework how to install a bundle
+  (e.g. by calling 'install' in a OSGi shell or providing the bundle
+  name during startup). This bundle has a dependency on an OSGi
+  HttpService, which needs to be available. Some OSGi container (like
+  Glassfish v3) already comes with a HttpService as an installation
+  option, for others you need to install one manually. A good choice
+  is the Pax Web (http://wiki.ops4j.org/display/paxweb/Pax+Web)
+  HttpService. Select the pax-web-jetty-bundle when downloading, it
+  contains a all you need.
 
   Considered you installed the HttpService at its default port 8080, 
   you can connect to it via
@@ -97,7 +96,7 @@ SUPPORTED OSGI PLAFORMS
 
   * Felix 2.0.1
   * Equinox 3.5.1
-  * Glassfish v3 (with Felix included)
+  * Glassfish v3 
   * Spring dm Server 2.0
 
   Since OSGi bundles are highly portable, it is expected that every

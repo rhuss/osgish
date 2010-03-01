@@ -224,7 +224,10 @@ sub cmd_stop {
     my $self = shift;
     return sub { 
         my @args = @_;
-        $self->agent->stop_bundle(@args);
+        my $agent = $self->agent;
+        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
+        die "No bundle to stop given\n" unless @$filtered_bundles;
+        $agent->stop_bundle(@$filtered_bundles);
     }
 }
 

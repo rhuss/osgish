@@ -1,23 +1,11 @@
 01 'servers save'
 06 Configuration handling and per server
-07 install/uninstall/update: Stream bundle over the wire, 
-   needs help from OsgihService for uploading 
-   the jar
-08 '--no-color' option
-
-
-
-=========================
-
-Top-Level Verzeichnis: "bundle",
-danach nur ein level tief "service", "upload", ....
-in service "bls" zur Anzeige von bundles
-
-@context --> $context;
-
-rekursiven Stoff aufraeumen.
-
-
-- complete_in_upload_dir nach Completion moven
-
-- search for a java class within the package
+09 command line completion for install
+10 color themes configurable
+11 check color consistency
+12 better online help
+13 search for a given package
+14 list content of a bundle (needs extra JMX support)
+15 extract part of a bundle (needs extra JMX support)
+16 download a bundle (needs extra JMX support)
+17 dynamic registration of bundles + plugin lookup
