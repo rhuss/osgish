@@ -117,12 +117,14 @@ sub _init {
                        package_imported_from => RED,
                        package_exported_to => RED,
                        bundle_id => RED,
+                       bundle_name => RED,
                        header_name => DARK . YELLOW,
                        header_value => ""
                       };
     my $theme_dark = { 
                       host => YELLOW,
                       bundle_id => RED,
+                      bundle_name => RED,                      
                       bundle_active => GREEN,
                       bundle_installed => RED,
                       bundle_resolved => YELLOW,

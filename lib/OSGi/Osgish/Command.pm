@@ -109,6 +109,19 @@ sub agent {
     return shift->{osgish}->agent;
 }
 
+=item @colors = $cmd->color(@color_ids) 
+
+Return a list of ANSI color strings for the given symbolic color names which
+are looked up from the current color theme. If no coloring is enabled, empty
+strings are returned. This method dispatched directly to the underylyin
+C<osgish> object.
+
+=cut 
+
+sub color {
+    return shift->{osgish}->color(@_);
+}
+
 =item $cmd->push_on_stack("context",$cmds) 
 
 Rerturn a sub (closure) which can be used as a command to update the context

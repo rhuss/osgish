@@ -4,6 +4,7 @@ package OSGi::Osgish::CompletionHandler;
 
 use strict;
 use File::Spec;
+use Data::Dumper;
 
 =head1 NAME 
 
@@ -119,7 +120,8 @@ sub _bundle_or_service {
         my $len = length($str);
         if (!$args->{no_ids} && $str =~ /^\d+$/) { 
             # Complete on ids
-            return [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{&$ids_sub()} ];
+            my $ret = [ sort { $a <=> $b } grep { substr($_,0,$len) eq $str } @{&$ids_sub()} ];
+            return $ret;
         } else {
             my @sym_names = sort keys %{&$names_sub()};
             if ($str) {

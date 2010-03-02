@@ -75,43 +75,120 @@ sub sub_commands {
             "ls" => { 
                      desc => "List bundles",
                      proc => $self->cmd_list,
-                     args => $self->complete->bundles(no_ids => 1)
+                     args => $self->complete->bundles(no_ids => 1),
+                     doc => <<EOT,
+
+ls [-s -e -i] [<bnd>]
+
+List one or more bundles.
+
+Options:
+  -i    Show wired imports (single bundle)
+  -e    Show wired exports (single bundle)
+  -s    Show symbolic name (single bundle)
+  <bnd> Bundle id or symbolic name, conditionally 
+        with wildcards ('*' and '?') 
+EOT
                     },
             "start" => { 
                         desc => "Start bundles",
                         proc => $self->cmd_start,
-                        args => $self->complete->bundles
+                        args => $self->complete->bundles,
+                        doc => <<EOT,
+
+start <bnd1> <bnd2> ...
+
+Start one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+EOT
                        },
             "stop" => { 
                        desc => "Stop bundles",
                        proc => $self->cmd_stop,
-                       args => $self->complete->bundles
+                       args => $self->complete->bundles,
+                       doc => <<EOT,
+
+stop <bnd1> <bnd2> ...
+
+Stop one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+EOT
                       },
             "resolve" => {
                           desc => "Resolve bundles",
                           proc => $self->cmd_resolve,
-                          args => $self->complete->bundles
+                          args => $self->complete->bundles,
+                          doc => <<EOT
+
+resolve <bnd1> <bnd2> ...
+
+Resolve one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+EOT
+
                          },
             "update" => {
                          desc => "Update a bundle optionally from a new location",
                          proc => $self->cmd_update,
-                         args => $self->complete->bundles
+                         args => $self->complete->bundles,
+                         doc => <<EOT
+
+update <bnd1> <bnd2> ...
+update -l <url> <bnd>
+
+Update one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+
+With '-l' a single bundle can be updated from the 
+given location URL.
+EOT
+  
                         },
             "install" => {
-                            desc => "Install a bundle",
-                            proc => $self->cmd_install,
-                          #args => $self->complete->bundles
+                          desc => "Install a bundle",
+                          proc => $self->cmd_install,
+                          # Todo: Complete on file names if no schema is given
+                          # and the server is a local host
+                          args => $self->complete->bundles,
+                          doc => <<EOT
+
+install <url>
+
+Install a single bundle from the given URL.
+EOT
+
                            },
             "uninstall" => {
                             desc => "Uninstall bundles",
                             proc => $self->cmd_uninstall,
-                            args => $self->complete->bundles
+                            args => $self->complete->bundles,
+                            doc => <<EOT
+
+uninstall <bnd1> <bnd2> ...
+
+Uninstall one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+EOT
                            },
             "refresh" => {
                           desc => "Refresh bundles",
                           proc => $self->cmd_refresh,
-                          args => $self->complete->bundles
-                        }
+                          args => $self->complete->bundles,
+                          doc => <<EOT
+
+Refresh <bnd1> <bnd2> ...
+
+Refresh one or more bundles. Bundles can be given
+as ids or symbolic names (or mixed). Wildcards
+('*' and '?') are supported on symbolic names.
+EOT
+                          
+                         }
            };
 }
 
@@ -192,7 +269,9 @@ sub cmd_resolve {
     my $self = shift;
     return sub { 
         my @args = @_;
-        $self->agent->resolve_bundle(@args);
+        my $filters = $self->_filter_symbolic_names(@args);
+        $self->agent->resolve_bundle(@$filters);
+        
     }
 }
 
@@ -206,11 +285,12 @@ Start one or more bundles by its id or symbolicname
 sub cmd_start {
     my $self = shift;
     return sub { 
-        my @args = @_;
-        my $agent = $self->agent;
-        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
-        die "No bundle to start given\n" unless @$filtered_bundles;
-        $agent->start_bundle(@$filtered_bundles);
+        my $filters = $self->_filter_symbolic_names(@_);
+        my $ret;
+        eval { 
+            $ret = $self->agent->start_bundle(@$filters);
+        };
+        $self->_print_operation_result("Start",$ret,$filters,$@);
     }
 }
 
@@ -223,11 +303,12 @@ Stop one or more bundles by its id or symbolicname
 sub cmd_stop {
     my $self = shift;
     return sub { 
-        my @args = @_;
-        my $agent = $self->agent;
-        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
-        die "No bundle to stop given\n" unless @$filtered_bundles;
-        $agent->stop_bundle(@$filtered_bundles);
+        my $filters = $self->_filter_symbolic_names(@_);
+        my $ret;
+        eval { 
+            $ret = $self->agent->stop_bundle(@$filters);
+        };
+        $self->_print_operation_result("Stop",$ret,$filters,$@);
     }
 }
 
@@ -242,23 +323,19 @@ sub cmd_update {
     return sub {
         my ($opts,@filters) = $self->extract_command_options(["l=s"],@_);
         my $agent = $self->osgish->agent;
-        my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@filters)} ];
-        die "No bundle to update given\n" unless @$filtered_bundles;
+        my $filtered_bundles = $self->_filter_symbolic_names(@filters);
         #print Dumper($filtered_bundles);
-        if ($opts->{l} || @$filtered_bundles == 1) {
-            die "Can only update a single bundle with -l. Given : ",join(",",@$filtered_bundles),"\n"
-              if @$filtered_bundles > 1;
-            my $ret = $self->agent->update_bundle($filtered_bundles->[0],$opts->{l});
-            print "Updated ",$filtered_bundles->[0],"\n";
-        } else {
-            my $ret = $self->agent->update_bundles(@$filtered_bundles);
-            if ($ret->{Success} eq "true") {
-                print "Updated bundles ",(join ", ",@{$ret->{Completed}}),"\n";
+        my $ret;
+        eval { 
+            if ($opts->{l} || @$filtered_bundles == 1) {
+                die "Can only update a single bundle with -l. Given : ",join(",",@$filtered_bundles),"\n"
+                  if @$filtered_bundles > 1;
+                $ret = $self->agent->update_bundle($filtered_bundles->[0],$opts->{l});
             } else {
-                print "Error during update: ",$ret->{Error},"\n";
-                print Dumper($ret);
+                $ret = $self->agent->update_bundles(@$filtered_bundles);
             }
-        }
+        };
+        $self->_print_operation_result("Updat",$ret,$filtered_bundles,$@);
     }
 }
 
@@ -273,12 +350,12 @@ sub cmd_install {
     my $osgish = $self->osgish;
     return sub {
         my @args = @_;
-        my $ret = $self->agent->install_bundle(@args);
-        my ($color,$reset) = $osgish->color("bundle_id",RESET);
-        if (!ref($ret)) {
-            print "Installed bundle " . $color . $ret . $reset . ".\n";
-        }
-        #print Dumper($ret);
+        
+        my $ret;
+        eval {
+            $ret = $self->agent->install_bundle(@args);
+        };
+        $self->_print_operation_result("Install",$ret,\@args,$@,1);
     }
 }
 
@@ -291,8 +368,12 @@ Uninstall one or more bundles
 sub cmd_uninstall {
     my $self = shift;
     return sub {
-        my @args = @_;
-        $self->agent->uninstall_bundle(@args);
+        my $filters = $self->_filter_symbolic_names(@_);
+        my $ret;
+        eval { 
+            $ret = $self->agent->uninstall_bundle(@$filters);
+        };
+        $self->_print_operation_result("Uninstall",$ret,$filters,$@);
     }
 }
 
@@ -305,8 +386,12 @@ Refresh one or more bundles
 sub cmd_refresh {
     my $self = shift;
     return sub {
-        my @args = @_;
-        $self->agent->refresh_bundle(@args);
+        my $filters = $self->_filter_symbolic_names(@_);
+        my $ret;
+        eval { 
+            $ret = $self->agent->refresh_bundle(@$filters);
+        };
+        $self->_print_operation_result("Refresh",$ret,$filters,$@);
     }
 }
 
@@ -339,6 +424,48 @@ sub print_bundle_info {
     #print Dumper($bu);
 }
 
+sub _print_operation_result {
+    my $self = shift;
+    my $label = shift;
+    my $ret = shift;
+    my $bundles = shift;
+    my $error = shift;
+    my $no_cache = shift;    
+    my $agent = $self->agent;
+    # Update cache if required
+    $agent->bundles() if $no_cache;
+    my ($c_bid,$c_bname,$c_r) = $self->color("bundle_id","bundle_name",RESET);
+    if ($error) {
+        print $label . "ing failed for " . join(",",map { $c_bname . $_ . $c_r } @$bundles) . ":\n";
+        print $error;
+    } elsif (ref($ret) eq "HASH") {
+        if (lc $ret->{Success} eq "false") {       
+            my $id = $ret->{BundleInError};
+            my $name = $agent->bundle_name($id,use_cached => 1);  
+            print $label . "ing failed for bundle " . $c_bname . $name . $c_r . " (" . $c_bid . $id . $c_r . "): \n";
+            print $ret->{Error} . "\n\n";
+        }
+        if ($ret->{Completed} && @{$ret->{Completed}}) {
+            print $label . "ed Bundles:\n";
+            for my $c (sort { $a <=> $b } @{$ret->{Completed}}) {
+                my $name = $agent->bundle_name($c,use_cached => 1);  
+                print "    " . $c_bname . $name . $c_r . " (". $c_bid . $c . $c_r . ")\n";
+            }
+        }
+        if ($ret->{Remaining} && @{$ret->{Remaining}}) {
+            print "Remaining Bundles:\n";
+            for my $c (sort { $a <=> $b } @{$ret->{Remaining}}) {
+                my $name = $agent->bundle_name($c,use_cached => 1);  
+                print "    " . $c_bname . $name . $c_r . " (". $c_bid . $c . $c_r . ")\n";
+            }
+        }
+    } else {
+        my $name = $agent->bundle_name($ret,use_cached => 1);
+        print $label . "ed bundle " . $c_bname . $name . $c_r . " (" . $c_bid . $ret . $c_r . ")\n";
+    }
+}
+
+
 sub _extract_services {
     my $self = shift;
     my $ids = shift;
@@ -367,7 +494,7 @@ sub _dump_services {
     my $s = "";
     my $services = $agent->services; # Update if necessary
     my $services = $self->_extract_services($bu->{RegisteredServices});
-    my ($c_bundle,$c_using,$c_registered,$c_reset) = $osgish->color("bundle_id","service_using","service_registered",RESET);
+    my ($c_bid,$c_bname,$c_using,$c_registered,$c_reset) = $osgish->color("bundle_id","bundle_name","service_using","service_registered",RESET);
     my $label = " Registered:";
     for my $id (keys %{$services}) {
         #print Dumper($services->{$id});
@@ -382,8 +509,12 @@ sub _dump_services {
     $label = " Using:";
     for my $id (keys %{$services}) {
         my $bundle = $services->{$id}->{bundle};
-        $bundle = $agent->bundle_name($bundle,use_cached => 1) if $opts->{s};
-        $s .= sprintf("%-14.14s %3.3s: %s <- %s\n",$label,$id,$c_using . $services->{$id}->{class} . $c_reset,$c_bundle . $bundle . $c_reset);
+        if ($opts->{s}) {
+            $bundle = $c_bname . $agent->bundle_name($bundle,use_cached => 1) . $c_reset; 
+        } else {
+            $bundle = $c_bid . $bundle . $c_reset;
+        }
+        $s .= sprintf("%-14.14s %3.3s: %s <- %s\n",$label,$id,$c_using . $services->{$id}->{class} . $c_reset,$bundle);
         $label = "";
     }
 
@@ -399,15 +530,15 @@ sub _dump_required {
     my $agent = $self->agent;
     
     my $s = "";
-    my ($c_id,$c_reset) = 
-      $osgish->color("bundle_id",RESET);
+    my ($c_bid,$c_bname,$c_reset) = 
+      $osgish->color("bundle_id","bundle_name",RESET);
     for my $e ([ "RequiredBundles","Required" ],[ "RequiringBundles", "Required by" ]) {
         my $bundles = $bu->{$e->[0]};
         if (@$bundles) {
             my $label = $e->[1];
             for my $id (@$bundles) {
-                my $id_c = $c_id . $id . $c_reset;
-                my $bundle = $opts->{s} ? $agent->bundle_name($id,use_cached => 1) . " " . $id_c : $id_c;
+                my $id_c = $c_bid . $id . $c_reset;
+                my $bundle = $opts->{s} ? $c_bname . $agent->bundle_name($id,use_cached => 1) . $c_reset . " (" . $id_c . ")" : $id_c;
                 $s .= sprintf("%-14.14s %s\n",$label,$bundle);
             }
         }
@@ -421,7 +552,7 @@ sub _dump_bundle_using {
     my $bundles = shift;
     my $args = shift;
     my $agent = $self->agent;
-    my ($c_bundle,$c_reset) = $self->osgish->color("bundle_id",RESET);
+    my ($c_bid,$c_bname,$c_reset) = $self->osgish->color("bundle_id","bundle_name",RESET);
     my $ret = "";
     my $prefix = $args->{prefix} || "";
     my $len = $args->{length} || length($main . $prefix);
@@ -430,10 +561,10 @@ sub _dump_bundle_using {
         if ($bundles && @$bundles) {
             my @names = map { $agent->bundle_name($_,use_cached => 1) } @$bundles;
             $ret .= sprintf("%-14.14s %s -> %s\n",$args->{label},$prefix . $main_c,
-                            $c_bundle . shift(@names) . $c_reset);
+                            $c_bname . shift(@names) . $c_reset);
             my $indent = " " x (19 + $len);
             while (@names) {
-                $ret .= $indent . $c_bundle . (shift @names) . $c_reset . "\n";
+                $ret .= $indent . $c_bname . (shift @names) . $c_reset . "\n";
             }               
         } else {
             $ret .= sprintf("%-14.14s %s\n",$args->{label},$prefix . $main);
@@ -443,7 +574,7 @@ sub _dump_bundle_using {
         my $src = "";
         my $c = $main;
         if ($bundles && @$bundles) {
-            my $txt = join ", ", map { $c_bundle . $_ . $c_reset } @$bundles;
+            my $txt = join ", ", map { $c_bid . $_ . $c_reset } @$bundles;
             $src = " -> " . $txt;
         }
         $ret .= sprintf("%-14.14s %s%s\n",$args->{label},$prefix . $main_c,$src);
@@ -460,15 +591,15 @@ sub _dump_main_info {
     my $agent = $self->agent;
 
     my $name = $bu->{Headers}->{'[Bundle-Name]'}->{Value};
-    my ($c_id,$c_version,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_version","bundle_fragment",RESET);    
+    my ($c_bid,$c_bname,$c_version,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_name","bundle_version","bundle_fragment",RESET);    
     my $sym = $bu->{SymbolicName} || $bu->{Location};
     my $version = $bu->{Version} ? $c_version . $bu->{Version} . $c_reset : "";
     my $fragment = $bu->{Fragment} eq "true" ? "(" . $c_fragment . "Fragment" . $c_reset . ")" : "";
     my $rest = join(" ",$version,$fragment);
     my $state_color = $self->_bundle_state_color($bu);
     my $state = "[" . $state_color . $self->_state_info($bu) . $c_reset . "]";
-    $sym = $c_id . $sym . $c_reset;
-    $$ret .= sprintf("%-14.14s %s %s\n","Name:",$c_id.$bu->{Identifier}.$c_reset,$name ? $name : $sym) if $name;
+    $sym = $c_bname . $sym . $c_reset;
+    $$ret .= sprintf("%-14.14s %s %s\n","Name:",$c_bid.$bu->{Identifier}.$c_reset,$name ? $name : $sym) if $name;
     $$ret .= sprintf("%-14.14s %s %s %s\n","",$name ? $sym : "",$state,$rest);
     $$ret .= sprintf("%-14.14s %s\n","Location:",$bu->{Location});
     $$ret .= sprintf("%-14.14s %s\n","Modified:",$self->format_date($bu->{LastModified}/1000));
@@ -495,13 +626,13 @@ sub _add_fragment {
     my $label = shift;
     my $osgish = $self->osgish;
     my $agent = $self->agent;
-    my ($c_id,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_fragment",RESET);    
+    my ($c_bid,$c_bname,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_name","bundle_fragment",RESET);    
     
     if ($list && @{$list}) {
         # Host can occur multiple times
         my %uniq = map { $_ => 1 } @$list;
         for my $f (keys %uniq ) {
-            my $name = $c_fragment . $agent->bundle_name($f,use_cached => 1) . $c_reset . " (${c_id}${f}${c_reset})";
+            my $name = $c_fragment . $agent->bundle_name($f,use_cached => 1) . $c_reset . " (${c_bid}${f}${c_reset})";
             $$ret .= sprintf("%-14.14s %s\n",$label,$name);
             $label = "";
         }
@@ -732,6 +863,15 @@ sub _split_property {
 }
 
 # Filter bundles according to some criteria
+sub _filter_symbolic_names {
+    my $self = shift;
+    my $agent = $self->agent;
+    my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
+    die "No bundle given\n" unless @$filtered_bundles;    
+    return $filtered_bundles;
+}
+
+
 sub _filter_bundles {
     my $self = shift;
     my ($bundles,@filters) = @_;

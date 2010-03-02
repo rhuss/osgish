@@ -11,7 +11,7 @@ use OSGi::Osgish::CommandHandler;
 use Data::Dumper;
 use vars qw($VERSION);
 
-$VERSION = "0.1.0_3";
+$VERSION = "0.1.0";
 
 =head1 NAME 
 

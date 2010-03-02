@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-osgish - Admin's OSGi Shell
+osgish - A OSGi Shell
 
 =cut
 
@@ -27,7 +27,7 @@ use OSGi::Osgish;
    --proxy <url>           URL to proxy
    --proxy-user <user>     Authentication information for a proxy
    --proxy-password <pwd>
-   --config                Path to an optional configuration file (default: ~/.osgish)
+   --config <cfg-file>     Path to an optional configuration file (default: ~/.osgish)
    --color [yes|no]        Color option (default: yes)
 
 =head1 DESCRIPTION

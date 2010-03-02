@@ -36,9 +36,9 @@ sub commands {
     return 
         {
          "upload" => { 
-                      desc => "Upload related operations",
+                      desc => "Upload operations",
                       proc => $self->push_on_stack("upload",$cmds),
-                      cmds => $cmds                       
+                      cmds => $cmds            
                      },
          "u" => { alias => "upload", exclude_from_completion => 1},
         };
@@ -50,26 +50,44 @@ sub sub_commands {
             "ls" => { 
                      desc => "List upload directory",
                      proc => $self->cmd_list,
+                     doc => <<EOT
+List the content of the upload. Installed bundles are marked
+by color.
+EOT
                     },
             "put" => {
                       desc => "Upload a bundle",
                       proc => $self->cmd_put,
-                      args => $self->complete->files_extended
+                      args => $self->complete->files_extended,
+                      doc => <<EOT
+Upload a bundle from the local filesystem.
+EOT
                      },
             "rm" => {
                      desc => "Remove a bundle",
                      proc => $self->cmd_delete,
-                     args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
+                     args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) },
+                     doc => <<EOT
+Remove a bundle from the upload directory. Installed
+bundles need to be uninstalled first.
+EOT
                     },
             "install" => {
                           desc => "Install a bundle",
                           proc => $self->cmd_install,
-                          args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
+                          args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) },
+                          doc => <<EOT
+Install a bundle out of the upload directory.
+EOT
                          },
             "update" => {
-                     desc => "Update a bundle",
-                     proc => $self->cmd_update,
-                     args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) }
+                         desc => "Update a bundle",
+                         proc => $self->cmd_update,
+                         args => sub { $self->agent->upload->complete_files_in_upload_dir(@_) },
+                         doc => <<EOT
+Update a bundle from its location in the upload
+directory.
+EOT
                     },
            };
 }

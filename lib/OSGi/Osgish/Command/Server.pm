@@ -29,13 +29,27 @@ sub top_commands {
     return {
             "servers" => { 
                           desc => "Show all configured servers",
-                          proc => $self->cmd_server_list
+                          proc => $self->cmd_server_list,
+                          doc => <<EOT
+List all servers stored in the configuration 
+and those connected during this session 
+(indicated by a '*')
+EOT
                          },
             "connect" => { 
                           desc => "Connect to a server by its URL or symbolic name",
                           minargs => 1, maxargs => 2,
                           args => $self->complete->servers,
-                          proc => $self->cmd_connect
+                          proc => $self->cmd_connect,
+                          doc => <<EOT
+
+connect <url or name> [<name>]
+
+Connect to an agent. <url> is the URL under which the agent
+is reachable. Alternatively a <name> as stored in the configuration
+can be given. Is using the <url> form an additional <name>
+can be given which will be used as name in the server list.
+EOT
                          },
            };
 }

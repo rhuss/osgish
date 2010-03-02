@@ -1,4 +1,4 @@
-A#!/usr/bin/perl
+#!/usr/bin/perl
 
 =head1 NAME 
 
@@ -9,7 +9,6 @@ OSGi::Osgish::Agent - Access to the OSGi agent bundle
 =head1 DESCRIPTION
 
 =cut
-
 package OSGi::Osgish::Agent;
 
 use strict;
@@ -114,7 +113,7 @@ sub bundle_symbolic_names {
 sub bundle_ids {
     my $self = shift;
     $self->_update_bundles(@_);
-    return sort keys %{$self->{bundle}->{ids}};
+    return [ sort keys %{$self->{bundle}->{ids}} ];
 }
 
 sub bundle_name {
@@ -184,9 +183,10 @@ sub _bulk_bundle_cmd {
     }
     die "No id given\n" unless @ids;
     if (@ids > 1) {
-        $self->execute($self->_mbean_name("framework"),$what_multi,\@ids);
+        return $self->execute($self->_mbean_name("framework"),$what_multi,\@ids);
     } else {
         $self->execute($self->_mbean_name("framework"),$what_single,$ids[0]);
+        return $ids[0];
     }
 }
 
@@ -211,6 +211,7 @@ sub update_bundle {
     } else {
         $self->execute($self->_mbean_name("framework"),"updateBundle(long)",$id);
     }
+    return $id;
 }
 
 # Return values

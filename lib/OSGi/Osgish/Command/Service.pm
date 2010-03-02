@@ -37,7 +37,10 @@ sub commands {
             "service" => { 
                           desc => "Service related operations",
                           proc => $self->push_on_stack("service",$cmds),
-                          cmds => $cmds 
+                          cmds => $cmds,
+                          doc => <<EOT
+Enter the service menu.
+EOT
                          },
             "s" => { alias => "service", exclude_from_completion => 1},
             "serv" => { alias => "service", exclude_from_completion => 1}
@@ -51,7 +54,20 @@ sub sub_commands {
          "ls" => { 
                   desc => "List all services",
                   proc => $self->cmd_list,
-                  args => $self->complete->services(no_ids => 1) 
+                  args => $self->complete->services(no_ids => 1),
+                  doc => <<EOT
+
+ls [-u <using>] [-b <bundle>] [<service id>|<object class>]
+
+List all services or, when a single service id is given, print
+details of this service. As argument a object class can be given
+as well (with optional wildcards).
+
+Options:
+
+  -u <using>  : List all services which are used by bundle <using>
+  -b <bundle> : List all services provided by bundle <bundle>
+EOT
                  },
 #         "bls" => { 
 #                   desc => "List bundles",

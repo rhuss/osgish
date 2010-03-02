@@ -32,23 +32,52 @@ sub global_commands {
         {
          "error" => {
                      desc => "Show last error (if any)",
-                     proc => $self->cmd_last_error
+                     proc => $self->cmd_last_error,
+                     doc => <<EOT
+Show the last error, if any occured. Including all
+stacktraces returned by the server.
+EOT
                     },
          "help" => {
                     desc => "Print online help",
                     args => sub { shift->help_args(undef, @_); },
-                    method => sub { shift->help_call(undef, @_); }
+                    method => sub { shift->help_call(undef, @_); },
+                    doc => <<EOT,
+help [<command>]
+h [<command>]
+
+Print online help. Without option, show a summary. With 
+option, show specific help for command <command>.
+EOT
                    },
          "h" => { alias => "help", exclude_from_completion=>1},
+         "history" => { 
+                       desc => "Command History",
+                       doc => <<EOT,
+
+history [-c] [-d <num>]
+
+Specify a number to list the last N lines of history
+
+Options:
+   -c      : Clear the command history
+   -d <num> : Delete a single item <num>
+EOT
+                       args => "[-c] [-d] [number]",
+                       method => sub { shift->history_call(@_) },                       
+                      },
          "quit" => {
                     desc => "Quit",
                     maxargs => 0,
-                    method => sub { shift->exit_requested(1); }
+                    method => sub { shift->exit_requested(1); },
+                    doc => <<EOT,
+Quit osgish.
+EOT
                    },
          "q" => { alias => 'quit', exclude_from_completion => 1 },
          $osgi ? ("shutdown" => {
                                  desc => "Shutdown server",
-                                 proc => $self->cmd_shutdown
+                                 proc => $self->cmd_shutdown,
                                 },
                   "restart" => {
                                 desc => "Restart server",
