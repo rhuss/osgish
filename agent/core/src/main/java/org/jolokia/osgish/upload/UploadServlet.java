@@ -1,4 +1,4 @@
-package org.jmx4perl.osgish.upload;
+package org.jolokia.osgish.upload;
 
 import org.apache.commons.fileupload.FileItemIterator;
 import org.apache.commons.fileupload.FileItemStream;

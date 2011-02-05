@@ -1,4 +1,4 @@
-package org.jmx4perl.osgish.upload;
+package org.jolokia.osgish.upload;
 
 import java.util.Map;
 

@@ -11,17 +11,17 @@ use strict;
 use JMX::Jmx4Perl::Config;
 use Config::General;
 use OSGi::Osgish;
+use Data::Dumper;
 
 =head1 SYNOPSIS
 
-  osgish [options] 
+  osgish [options] <server>
 
   osgish --help
 
   osgish --version
 
  Options:
-   --server <server>       URL or symbolic name of OSGi server to connect to
    --user <user>           Credential used for authentication   
    --password <pwd>  
    --proxy <url>           URL to proxy
@@ -29,6 +29,10 @@ use OSGi::Osgish;
    --proxy-password <pwd>
    --config <cfg-file>     Path to an optional configuration file (default: ~/.osgish)
    --color [yes|no]        Color option (default: yes)
+
+An optional argument can be used to directly connect to an agent URL or
+symbolic name as defined in the configuration file. If not given, the shell
+does no initial connect.
 
 =head1 DESCRIPTION
 
@@ -66,7 +70,6 @@ Remote operation via HTTP(S)
 
 my %opts = ();
 my $result = GetOptions(\%opts,
-                        "server|s=s",
                         "user|u=s","password|p=s",
                         "proxy=s",
                         "proxy-user=s","proxy-password=s",
@@ -75,6 +78,8 @@ my $result = GetOptions(\%opts,
                         "color=s",
                         "help|h!" => sub { &Getopt::Long::HelpMessage() }
                        );
+
+my $server = shift;
 
 if ($opts{version}) {
     print "osgish ",$OSGi::Osgish::VERSION,"\n";
@@ -85,7 +90,7 @@ if ($opts{version}) {
 my $jmx_config = new JMX::Jmx4Perl::Config(&get_config($opts{config}));
 
 # Create global context object
-my $osgish = new OSGi::Osgish(config => $jmx_config,args => \%opts);
+my $osgish = new OSGi::Osgish(initial_server => $server, config => $jmx_config,args => \%opts);
 
 # Let the shell run
 $osgish->run;
@@ -100,7 +105,10 @@ sub get_config {
       if -e $ENV{HOME} . "/.j4p";
     if ($file && -e $file) {
         $ret = { new Config::General(-ConfigFile => $file,-LowerCaseNames => 1,-DefaultConfig => $default)->getall };        
-    } 
+    } else {
+        $ret = $default;
+    }
+#    print Dumper($ret);
     return $ret;
 }
 

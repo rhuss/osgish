@@ -1,4 +1,4 @@
-package org.jmx4perl.osgish;
+package org.jolokia.osgish;
 
 import org.osgi.framework.*;
 import org.osgi.service.log.LogService;

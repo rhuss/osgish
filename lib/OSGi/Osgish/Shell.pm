@@ -16,7 +16,6 @@ OSGi::Osgish::Shell - Facade to Term::ShellUI
 
 =cut
 
-
 sub new { 
     my $class = shift;
     my $self = ref($_[0]) eq "HASH" ? $_[0] : {  @_ };
@@ -179,6 +178,7 @@ sub readline {
     my $term = $self->term;
     return $term->{term}->ReadLine;
 }
+
 
 =head1 LICENSE
 

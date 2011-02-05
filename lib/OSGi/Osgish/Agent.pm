@@ -170,7 +170,7 @@ sub uninstall_bundle {
 sub refresh_bundle {
     my $self = shift;
     $self->_update_bundles();
-    $self->_bulk_bundle_cmd("refreshPackages(long)","refreshPackages([J)",@_);
+    $self->_bulk_bundle_cmd("refreshBundle","refreshBundles",@_);
 }
 
 sub _bulk_bundle_cmd {
@@ -195,7 +195,9 @@ sub install_bundle {
     my @locations = @_;
     my $mbean = $self->_mbean_name("framework");
     if (@locations > 1) {
-        $self->execute($mbean,"installBundles([Ljava.lang.String;)",\@locations);
+        # Must be posted due to the ";" sign, which, even when escaped,
+        # confuses e.g. Glassfish when part of an GET Url
+        $self->execute_post($mbean,"installBundles([Ljava.lang.String;)",\@locations);
     } else {
         $self->execute($mbean,"installBundle(java.lang.String)",$locations[0]);
     }
@@ -254,14 +256,29 @@ sub execute {
     my $operation = shift || die "No operation given for MBean $mbean";
     my @args = @_;
 
+    return $self->_do_execute(new JMX::Jmx4Perl::Request(EXEC,$mbean,$operation,@args));
+}
+
+sub execute_post {
+    my $self = shift;
+    my $mbean = shift || die "No MBean name given";
+    my $operation = shift || die "No operation given for MBean $mbean";
+    my @args = @_;
+
+    return $self->_do_execute(new JMX::Jmx4Perl::Request(EXEC,$mbean,$operation,@args,{method => "POST"}));
+}
+
+sub _do_execute {
+    my $self = shift;
+    my $request = shift;
+
     my $j4p = $self->{j4p};
 
-    my $request = new JMX::Jmx4Perl::Request(EXEC,$mbean,$operation,@args);
     my $response = $j4p->request($request);
     if ($response->is_error) {
         #print Dumper($response);
         if ($response->status == 404) {
-            die "No agent running [Not found: $mbean,$operation].\n"
+            die "No agent running [Not found: ",$request->{mbean},",",$request->{operation},"].\n"
         } else {
             $self->{last_error} = $response->{error} . 
               ($response->stacktrace ? "\nStacktrace:\n" . $response->stacktrace : "");
@@ -376,9 +393,10 @@ sub _fetch_packages {
     my $package = $self->_fetch_list("packageState","listPackages");
     $package->{import_export} = $self->_extract_import_export($package->{list});
     $self->{package} = $package;
+    #print Dumper($package);
 }
 
-sub exporting_bundle {
+sub exporting_bundles {
     return shift->_exporting_importing_bundle("exporting",@_);
 }
 
@@ -406,25 +424,25 @@ sub _extract_import_export {
         # We are using the chached bundle names here. Should be ok.
         $ret->{$v->{Name}}->{$v->{Version}} = 
             {              
-             importing => 
-             [ 
-              map { 
-                    { 
-                      id => $_, 
-                      name => $self->{bundle}->{ids}->{$_}
-                    }
-                } 
-              @{$v->{ImportingBundles}}
-             ],
-             exporting => { 
-                           id => $v->{ExportingBundle},
-                           name => $self->{bundle}->{ids}->{$v->{ExportingBundle}}
-                          }
+             importing => $self->_extract_unique_bundles($v->{ImportingBundles}),
+             exporting => $self->_extract_unique_bundles($v->{ExportingBundles})
             };
     }
     return $ret;
 }
 
+sub _extract_unique_bundles {
+    my $self = shift;
+    my $bundles = shift;
+    my $ret = {};
+    map { 
+        $ret->{$_} = { 
+                      id => $_,
+                      name => $self->{bundle}->{ids}->{$_}
+                     }
+    } @$bundles;
+    return [ sort { $a->{id} <=> $b->{id} } values %$ret ];
+}
 
 sub _fetch_list {
     my $self = shift;

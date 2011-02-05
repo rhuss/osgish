@@ -1,15 +1,13 @@
-package org.jmx4perl.osgish;
+package org.jolokia.osgish;
 
-import org.apache.aries.jmx.Activator;
-import org.jmx4perl.osgi.J4pActivator;
-import org.jmx4perl.osgish.upload.UploadServlet;
-import org.jmx4perl.osgish.upload.UploadStore;
+import org.jolokia.osgi.context.JolokiaContext;
+import org.jolokia.osgish.upload.UploadServlet;
+import org.jolokia.osgish.upload.UploadStore;
 import org.osgi.framework.BundleActivator;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceReference;
 import org.osgi.framework.ServiceRegistration;
-import org.osgi.service.http.HttpService;
-import org.osgi.service.http.NamespaceException;
+import org.osgi.service.http.*;
 import org.osgi.service.log.LogService;
 import org.osgi.util.tracker.ServiceTracker;
 import org.osgi.util.tracker.ServiceTrackerCustomizer;
@@ -56,10 +54,6 @@ import java.lang.management.ManagementFactory;
  */
 public class OsgishActivator implements BundleActivator {
 
-    // Activators to delegate to
-    private J4pActivator j4pActivator;
-    private Activator ariesActivator;
-
     // Name of our MBeans
     private ObjectName serviceMBeanName;
     private ObjectName uploadStoreMBeanName;
@@ -70,6 +64,9 @@ public class OsgishActivator implements BundleActivator {
     // Service Tracker for HttpService
     private ServiceTracker httpServiceTracker;
 
+    // Service Tracker for the JolokiaContext
+    private ServiceTracker jolokiaTracker;
+
     // Tracker to be used for the LogService
     private ServiceTracker logTracker;
 
@@ -79,31 +76,22 @@ public class OsgishActivator implements BundleActivator {
     // Directory used for upload
     private File uploadDir;
 
-    public OsgishActivator() {
-        j4pActivator = new J4pActivator();
-        ariesActivator = new Activator();
-    }
+    // Alias of the upload servlet
+    private String uploadServiceAlias;
 
     public void start(BundleContext pContext) throws Exception {
         uploadDir = getUploadDirectory(pContext);
 
         openLogTracker(pContext);
-
-        j4pActivator.start(pContext);
         registerMBeanServer(pContext);
         registerMBeans(pContext);
-        registerUploadServlet(pContext);
-        ariesActivator.start(pContext);
-
+        startJolokiaContextTracker(pContext);
     }
 
     public void stop(BundleContext pContext) throws Exception {
-        ariesActivator.stop(pContext);
         unregisterUploadServlet();
         unregisterMBeans();
         unregisterMBeanServer();
-        j4pActivator.stop(pContext);
-
         closeLogTracker();
     }
 
@@ -169,29 +157,69 @@ public class OsgishActivator implements BundleActivator {
         return ManagementFactory.getPlatformMBeanServer();
     }
 
-    // Register servlet at HttpService if it becomes available
-    private void registerUploadServlet(BundleContext pContext) {
+    // Register servlet at HttpService if it becomes available. This is a two step process:
+    // First, it is waited that the JolokiaContext comes online as a service. It will contain
+    // the servlet alias to register under as well as the security config. Next, the HttpService
+    // is waited for to register the servlet itself.
+    private void startJolokiaContextTracker(BundleContext pContext) {
         UploadServlet uploadServlet = new UploadServlet(logTracker,uploadDir);
+        jolokiaTracker = new ServiceTracker(pContext, JolokiaContext.class.getName(),
+                                                getJolokiaContextRegistrationCustomizer(pContext, uploadServlet));
+        jolokiaTracker.open();
+    }
+
+    private ServiceTrackerCustomizer getJolokiaContextRegistrationCustomizer(final BundleContext pContext,
+                                                                             final UploadServlet pUploadServlet) {
+        return new ServiceTrackerCustomizer() {
+            public Object addingService(ServiceReference reference) {
+                JolokiaContext jolokiaContext = (JolokiaContext) pContext.getService(reference);
+                uploadServiceAlias = pUploadServlet.getServletAlias(jolokiaContext.getServletAlias());
+                registerUploadServlet(jolokiaContext, pContext, pUploadServlet);
+                return jolokiaContext;
+            }
+
+            public void modifiedService(ServiceReference reference, Object service) {
+            }
+
+            public void removedService(ServiceReference reference, Object service) {
+                unregisterUploadServlet();
+            }
+        };
+    }
+
+    // Register the upload servlet indirectrly via an HttpService (we are using a tracker to play nicely the dynamics)
+    private void registerUploadServlet(JolokiaContext pJolokiaContext, BundleContext pContext, UploadServlet pUploadServlet) {
         httpServiceTracker = new ServiceTracker(pContext, HttpService.class.getName(),
-                                                getRegistrationCustomizer(pContext,uploadServlet));
+                                                getHttpServiceRegistrationCustomizer(pContext, pUploadServlet, pJolokiaContext));
         httpServiceTracker.open();
     }
 
+    // Unregister an UploadServlet
     private void unregisterUploadServlet() {
-        httpServiceTracker.close();
-        httpServiceTracker = null;
+        if (httpServiceTracker != null) {
+            for (Object s : httpServiceTracker.getServices()) {
+                HttpService httpService = (HttpService) s;
+                httpService.unregister(uploadServiceAlias);
+            }
+            httpServiceTracker.close();
+
+            httpServiceTracker = null;
+        }
     }
 
-    private ServiceTrackerCustomizer getRegistrationCustomizer(final BundleContext pContext,
-                                                               final UploadServlet pUploadServlet) {
-        final String alias = pUploadServlet.getServletAlias(j4pActivator.getServletAlias());
+
+    // The customizer listens for when the HttpService gets online and registers the servlet accordingly
+    private ServiceTrackerCustomizer getHttpServiceRegistrationCustomizer(final BundleContext pContext,
+                                                                          final UploadServlet pUploadServlet, final JolokiaContext pJolokiaContext) {
+
+        final String alias = pUploadServlet.getServletAlias(pJolokiaContext.getServletAlias());
         return new ServiceTrackerCustomizer() {
             public Object addingService(ServiceReference reference) {
                 HttpService httpService = (HttpService) pContext.getService(reference);
                 try {
                     httpService.registerServlet(alias,
                                                 pUploadServlet,
-                                                null,j4pActivator.getHttpContext()
+                                                null,pJolokiaContext.getHttpContext()
                                                 );
                 } catch (ServletException e) {
                     log(LogService.LOG_ERROR,"ServletException during registration of " + alias,e);
@@ -217,6 +245,8 @@ public class OsgishActivator implements BundleActivator {
         logTracker = new ServiceTracker(pContext, LogService.class.getName(), null);
         logTracker.open();
     }
+
+
 
     private void closeLogTracker() {
         logTracker.close();

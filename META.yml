@@ -1,6 +1,6 @@
 ---
 name: osgish
-version: v0.1.0_3
+version: v0.2.0_1
 author:
   - Roland Huss (roland@cpan.org)
 abstract: A readline shell for OSGi
@@ -18,7 +18,7 @@ requires:
   Config::General: 0
   Data::Dumper: 0
   Getopt::Long: 0
-  JMX::Jmx4Perl: 0.55_2
+  JMX::Jmx4Perl: 0.60
   Pod::Usage: 0
   Term::Clui: 0
   Term::ReadLine: 0
@@ -32,7 +32,7 @@ configure_requires:
 provides:
   OSGi::Osgish:
     file: lib/OSGi/Osgish.pm
-    version: v0.1.0_3
+    version: v0.2.0_1
   OSGi::Osgish::Agent:
     file: lib/OSGi/Osgish/Agent.pm
   OSGi::Osgish::Agent::Upload:

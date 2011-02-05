@@ -206,6 +206,12 @@ following options:
 
 Show symbolic names instead of descriptive names
 
+=item -i 
+
+
+=item -e 
+
+
 =back
 
 If a single bundle is given as argument its details are shown.
@@ -540,6 +546,7 @@ sub _dump_required {
                 my $id_c = $c_bid . $id . $c_reset;
                 my $bundle = $opts->{s} ? $c_bname . $agent->bundle_name($id,use_cached => 1) . $c_reset . " (" . $id_c . ")" : $id_c;
                 $s .= sprintf("%-14.14s %s\n",$label,$bundle);
+                $label = "";
             }
         }
     }
@@ -672,9 +679,9 @@ sub _dump_imports {
         my $package = $k;
         $package = $c_pr . $package . $c_re if ($val->{resolved});
         my $src = "";
-        if ($val->{source}) {
+        if (defined($val->{source})) {
             my $b = $val->{source};
-            $src = " <- " . $c_ps . ($opts->{s} ? $b->{name} : $b->{id}) . $c_re;
+            $src = " <- " . join ", ", map { $c_ps . ($opts->{s} ? $_->{name} : $_->{id}) . $c_re } @{$val->{source}};
         }
         $$ret .= sprintf("%-14.14s %s %s%s%s\n",$label,$package,$version,$optional,$src);
         $label = "";
@@ -698,6 +705,7 @@ sub _dump_exports {
         my $package = $k;
         $package = $c_pr . $package . $c_re if ($val->{using} && @{$val->{using}});
         if ($val->{using}) {
+#            print Dumper($val->{using});
             $$ret .= $self->_dump_bundle_using($package . " " . $version,[map { $_->{id} } @{$val->{using}} ],
                                                  {length => $len,label => $label, use_sym => $opts->{s}});
             $label = "";
@@ -761,7 +769,7 @@ sub _extract_imports {
             $self->_add_imp_header_info($e,$imp_headers->{$package});
         }
         if ($lookup_sources) {
-            $e->{source} = $agent->exporting_bundle($package,$version,use_cached => !$first);
+            $e->{source} = $agent->exporting_bundles($package,$version,use_cached => !$first);
             $first = 0;
         }
         $imports->{$package} = $e;
@@ -866,7 +874,7 @@ sub _split_property {
 sub _filter_symbolic_names {
     my $self = shift;
     my $agent = $self->agent;
-    my $filtered_bundles = [map { $_->{SymbolicName} } @{$self->_filter_bundles($agent->bundles,@_)} ];
+    my $filtered_bundles = [map { $_->{SymbolicName} || $_->{Identifier} } @{$self->_filter_bundles($agent->bundles,@_)} ];
     die "No bundle given\n" unless @$filtered_bundles;    
     return $filtered_bundles;
 }
