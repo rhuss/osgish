@@ -1,38 +1,25 @@
 ---
-name: osgish
-version: v0.2.0_1
+abstract: 'A readline shell for OSGi'
 author:
-  - Roland Huss (roland@cpan.org)
-abstract: A readline shell for OSGi
-license: gpl
-resources:
-  license: http://opensource.org/licenses/gpl-license.php
+  - 'Roland Huss (roland@cpan.org)'
 build_requires:
   File::Copy: 0
   Module::Build: 0.35
   Test: 0
   Test::Deep: 0
   Test::More: 0
-requires:
-  Carp: 0
-  Config::General: 0
-  Data::Dumper: 0
-  Getopt::Long: 0
-  JMX::Jmx4Perl: 0.60
-  Pod::Usage: 0
-  Term::Clui: 0
-  Term::ReadLine: 0
-  Term::ReadLine::Perl: 0
-  Term::ShellUI: 0.86
-recommends:
-  Term::ANSIColor: 2.02
-  Term::ReadLine::Gnu: 0.27
 configure_requires:
-  Module::Build: 0.35
+  Module::Build: 0.36
+generated_by: 'Module::Build version 0.3607'
+license: gpl
+meta-spec:
+  url: http://module-build.sourceforge.net/META-spec-v1.4.html
+  version: 1.4
+name: osgish
 provides:
   OSGi::Osgish:
     file: lib/OSGi/Osgish.pm
-    version: v0.2.0_1
+    version: v0.2.0
   OSGi::Osgish::Agent:
     file: lib/OSGi/Osgish/Agent.pm
   OSGi::Osgish::Agent::Upload:
@@ -57,7 +44,20 @@ provides:
     file: lib/OSGi/Osgish/ServerHandler.pm
   OSGi::Osgish::Shell:
     file: lib/OSGi/Osgish/Shell.pm
-generated_by: Module::Build version 0.35
-meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: 1.4
+recommends:
+  Term::ANSIColor: 2.02
+  Term::ReadLine::Gnu: 0.27
+requires:
+  Carp: 0
+  Config::General: 0
+  Data::Dumper: 0
+  Getopt::Long: 0
+  JMX::Jmx4Perl: 0.60
+  Pod::Usage: 0
+  Term::Clui: 0
+  Term::ReadLine: 0
+  Term::ReadLine::Perl: 0
+  Term::ShellUI: 0.86
+resources:
+  license: http://opensource.org/licenses/gpl-license.php
+version: v0.2.0

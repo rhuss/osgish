@@ -1,3 +1,8 @@
+0.2.0
+  * Updated to Aries 0.3
+  * Splitted up OSGi bundles in a pure (core) bundle and an 
+    all-in-one bundle (bundle)
+
 0.1.0 
   * Upload bundles to server and manage it
   * Tuned context sensitive completions, added options to 'ls' of

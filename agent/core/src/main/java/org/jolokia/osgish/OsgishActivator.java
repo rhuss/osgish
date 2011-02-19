@@ -1,6 +1,6 @@
 package org.jolokia.osgish;
 
-import org.jolokia.osgi.context.JolokiaContext;
+import org.jolokia.osgi.servlet.JolokiaContext;
 import org.jolokia.osgish.upload.UploadServlet;
 import org.jolokia.osgish.upload.UploadStore;
 import org.osgi.framework.BundleActivator;

@@ -4,15 +4,15 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jolokia.osgish</groupId>
   <artifactId>osgish-core</artifactId>
+  <version>0.2.0</version>
   <name>osgish-core</name>
   <packaging>bundle</packaging>
-  <version>0.2.0.M1</version>
   <description>osgish-core - Osgish core</description>
 
   <parent>
     <groupId>org.jolokia.osgish</groupId>
     <artifactId>osgish-parent</artifactId>
-    <version>0.2.0.M1</version>
+    <version>0.2.0</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 

@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use Module::Build 0.35;
 use File::Copy;
+use File::Find;
 
 my $class = Module::Build->subclass(
       class => "Module::Build::Custom",
@@ -11,12 +12,19 @@ my $class = Module::Build->subclass(
       $self->SUPER::ACTION_distdir;
 
       $self->depends_on("buildagent");
-      opendir(D,"agent/target") || die "Cannot open agent/target for reading: #!";
-      my @files = grep { /osgish-agent-.*\.jar$/ } readdir(D);
-      closedir(D);
-      die "More than one agent found: ","@files" if @files > 1;
-      die "No agent jar found" unless @files;
-      File::Copy::copy("agent/target/$files[0]",$self->dist_dir) || die "Cannot copy $files[0] to ",$self->dist_dir," : $!";
+      my @agents = ();
+      find(
+         { 
+             wanted => sub { 
+                push @agents,$_ if /osgish-(core|bundle).*\.jar/;
+             }, 
+             no_chdir => 1
+      },"agent");
+      die "No agent jars found" unless @agents;
+      for my $agent (@agents) {
+         my $file = $1 . ".jar" if $agent =~ m{/(osgish-(core|bundle))};
+         File::Copy::copy($agent,$self->dist_dir . "/$file") || die "Cannot copy $agent to ",$self->dist_dir,"/$file : $!";
+      }
   }
 
   sub ACTION_clean {
@@ -26,7 +34,8 @@ my $class = Module::Build->subclass(
   }
 
   sub ACTION_get_agent {
-      &_download("osgish-agent","jar");
+      &_download("osgish-core","jar");
+      &_download("osgish-bundle","jar");
   }
 
   sub _download { 
@@ -39,7 +48,7 @@ my $class = Module::Build->subclass(
         print "No LWP installed\n";
         exit 1;
       }
-      my $BASE_URL = "http://labs.consol.de/maven/repository/org/jmx4perl";
+      my $BASE_URL = "http://labs.consol.de/maven/repository/org/jolokia/osgish";
       my $version = &_extract_version();
       my $file  = "$name-${version}.$type";
       my $url = $BASE_URL . "/$name/$version/$file";

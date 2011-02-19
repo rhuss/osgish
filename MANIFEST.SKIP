@@ -54,3 +54,4 @@ agent/osgish-agent.iml
 \.iws$
 \.tar.gz$
 limitations.txt
+^MYMETA.yml$

@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jmx4perl</groupId>
   <artifactId>osgish-bundle</artifactId>
-  <version>0.2.0.M1</version>
+  <version>0.2.0</version>
   <packaging>bundle</packaging>
   <name>osgish-bundle</name>
   <description>osgish - Osgish all-in-one bundle</description>
@@ -48,6 +48,11 @@
     <dependency>
       <groupId>org.osgi</groupId>
       <artifactId>org.osgi.core</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>org.osgi</groupId>
+      <artifactId>org.osgi.compendium</artifactId>
     </dependency>
 
     <dependency>
@@ -110,12 +115,14 @@
               org.apache.aries.util;inline=true,
               commons-io;inline=true,
               commons-fileupload;inline=true,
-              org.apache.felix.http.jetty;inline=true
+              org.apache.felix.http.jetty;inline=true,
+              org.osgi.compendium;inline=true
             </Embed-Dependency>
             <DynamicImport-Package>org.osgi.service.cm;version=1.2</DynamicImport-Package>
             <Export-Package>
-              org.jolokia.osgi.context;version="${jolokia.version}",
-              org.osgi.service.http;uses:="javax.servlet.http,javax.servlet";version="1.2",
+              org.jolokia.osgi.servlet;uses:="org.osgi.service.http,org.osgi.framework,javax.servlet";version="${project.version}",
+              org.osgi.service.http;uses:="javax.servlet.http,javax.servlet";-split-package:="merge-last";version="1.2.1",
+              org.osgi.service.log;version="1.3",
               javax.servlet.resources;version="2.5",
               javax.servlet;version="2.5",
               javax.servlet.jsp.resources;version="2.5",
@@ -126,19 +133,21 @@
               javax.security.cert;resolution:=optional,
               javax.servlet.*;resolution:=optional;version="2.5",
               javax.xml.parsers;resolution:=optional,
-              !org.apache.felix.http.api;resolution:=optional;version="2.0",
               org.osgi.framework;resolution:=optional;version="1.3",
               org.osgi.service.http;resolution:=optional;version="1.2",
+              org.osgi.service.cm;resolution:=optional;version="1.2",
               org.osgi.service.log;resolution:=optional;version="1.3",
               org.osgi.util.tracker;resolution:=optional;version="1.3",
+              org.osgi.service.condpermadmin;resolution:=optional;version="1.1",
+              org.osgi.service.permissionadmin;resolution:=optional;version="1.2",
               !org.slf4j;resolution:=optional,
               org.xml.sax;resolution:=optional,
               org.xml.sax.helpers;resolution:=optional,
               !javax.portlet,
+              !javax.microedition.*,
               !org.eclipse.osgi.*,
               !org.osgi.service.framework.*;resolution:=optional,
-              !org.osgi.service.provisioning.*;resolution:=optional,
-              !org.osgi.service.useradmin.*;resolution:=optional,
+              !org.jolokia.osgi.servlet,
               *
             </Import-Package>
           </instructions>
