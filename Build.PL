@@ -108,13 +108,15 @@ my $class = Module::Build->subclass(
                   my $v = shift;
                   my $t = shift;
                   $t =~ s|(</artifactId>\s+<version>)\s*(.+)\s*(</version>)|$1$v$3|;
+                  $t =~ s|(<artifactId>osgish-core</artifactiId>\s+<version>)\s*(.+)\s*(</version>)|$1$v$3|;
+                  $t =~ s|(<parent>.*<version>)\s*(.+)\s*(</version>.*</parent>)|$1$v$3|s;
                   return $t;
                  });
          }
        },"$FindBin::Bin/agent");
 
       print "Cannot re-create agent" 
-              unless $self->do_system(qw(mvn -f agent/pom.xml install));
+              unless $self->do_system(qw(mvn -f agent/pom.xml clean install));
   }
 
   sub _extract_version {
@@ -185,6 +187,7 @@ my $build = $class->new
                    "Term::ReadLine::Gnu" => "0.27",
                    "Term::ANSIColor" => "2.02"
                   },
+   configure_requires => { 'Module::Build' => 0.35 },
    build_requires => {
                       "Module::Build" => "0.35",
                       "File::Copy" => 0,

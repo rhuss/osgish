@@ -4,7 +4,7 @@
 INTRODUCTION
 
   Osgish is command line shell for OSGi. It is based on the Readline
-  Library, Jmx4Perl as OSGi backend and Aries JMX as OSGi Management
+  Library, Jolokia as JMX backend and Aries JMX as the OSGi Management
   layer, with Perl being the glue.
 
   Highlights of osgish are:
@@ -19,22 +19,21 @@ INTRODUCTION
   * Remote operation via HTTP(S)
 
   THIS IS A PREVIEW. Currently you can list, start and stop bundles
-  only. A lot of additional functionality is planned making osgish a
-  full featured OSGi shell. If you have a use case you want to have
-  covered, please don't hesistate to contact
-  roland@cpan.org. Everything is in the flow yet.
+  only. If you have a use case you want to have covered, please don't
+  hesistate to contact roland@cpan.org. 
+
+  Said this, osgish is already pretty useful.
 
 HOW IT WORKS
 
   Osgish consist of mainly two parts: A Perl command line script
   (along with some Perl modules) which connects to an OSGi container
-  via a special OSGi agent bundle (osgish-agent.jar). This bundle
-  contains the jmx4perl for exports JMX information through an OSGi
-  HttpService as JSON data. The JMX MBeans used are those provided by
-  the Aries (http://incubator.apache.org/aries/) which becomes an
-  implementation of the (yet to be finished) specification of the OSGi
-  Alliance Enterprise Expert Group (EEG), especially the "JMX
-  Management Model Specification".  
+  via a special OSGi agent bundle. This bundle contains for exports
+  JMX information through an OSGi HttpService as JSON data. The JMX
+  MBeans used are those provided by the Aries
+  (http://aries.apache.org) which is the implementation of the OSGi
+  Alliance Enterprise Expert Group (EEG) specification, especially the
+  "JMX Management Model Specification".
 
   Although this setup sounds a bit involved, installation is not much
   more than installing a CPAN package and a provided OSGi bundle (the
@@ -67,36 +66,55 @@ INSTALLATION
   via apt. However, the default implementation Term::ReadLine::Perl
   fits nicely, too.
 
-  For the module to work, you need to provision
-  "osgi-agent-<version>.jar" to each OSGi container you want to
-  connect to. Refer to your OSGi framework how to install a bundle
-  (e.g. by calling 'install' in a OSGi shell or providing the bundle
-  name during startup). This bundle has a dependency on an OSGi
-  HttpService, which needs to be available. Some OSGi container (like
-  Glassfish v3) already comes with a HttpService as an installation
-  option, for others you need to install one manually. A good choice
-  is the Pax Web (http://wiki.ops4j.org/display/paxweb/Pax+Web)
-  HttpService. Select the pax-web-jetty-bundle when downloading, it
-  contains a all you need.
+  The agent parts comes in two flavors: A minimal
+  'osgish-core-<version>.jar' bundle and and all-in-one bundle
+  'osgish-bundle-<version>.jar'. The all-in-one bundle is the proper
+  choice, if no HTTP service is already installed since it has Apache
+  Felix HTTP service embedded. However, the pure bundle is recommended
+  for installations onservers, which either provide an HTTP service on
+  their own or has an HTTP connector installed (e.g. Glassfish). This
+  pure bundle has a dependency on an OSGi HttpService, which needs to
+  be available. Some OSGi container (like Glassfish v3) already comes
+  with a HttpService as an installation option, for others you need to
+  install one manually. A good choice is the Pax Web
+  (http://wiki.ops4j.org/display/paxweb/Pax+Web) HttpService. Select
+  the pax-web-jetty-bundle when downloading, it contains a all you
+  need.
 
-  Considered you installed the HttpService at its default port 8080, 
-  you can connect to it via
+  Also, for the pure bundle the following Aries bundles, needs to be
+  installed so that JMX exposes the required information:
 
-  osgish --server http://localhost:8080/j4p
+  org.apache.aries.jmx (>= 0.3.0)
+  org.apache.aries.util (>= 0.3.0)
+
+  These bundles can be obtained from the Aries website aries.apache.org
+
+  Finally, the bundle needs the Jolokia agent
+  jolokia-osgi-<version>.jar, too. You can obtain it from
+  www.jolokia.org. 
+
+  The bundles needs to be installed manully. Refer to your OSGi
+  framework how to install a bundle (e.g. by calling 'install' in a
+  OSGi shell or providing the bundle name during startup).
+
+  Considered you the HttpService is available at its default port
+  8080, you can connect to it via
+
+  osgish --server http://localhost:8080/jolokia
 
   (This assumes, that the HttpService has a root context '/' which is
   true for Pax Web. Glassfish v3's HttpService use a root context of
   '/osgi' which results in a connect URL of
-  http://localhost:8080/osgi/j4p)
+  http://localhost:8080/osgi/jolokia)
 
-SUPPORTED OSGI PLAFORMS
+SUPPORTED OSGI PLATFORMS
   
   The following OSGi platform has been confirmed to work so far
   with: 
 
-  * Felix 2.0.1
-  * Equinox 3.5.1
-  * Glassfish v3 
+  * Felix 4
+  * Equinox 3.5
+  * Glassfish v3.1 
   * Spring dm Server 2.0
 
   Since OSGi bundles are highly portable, it is expected that every
@@ -104,6 +122,29 @@ SUPPORTED OSGI PLAFORMS
   box.  Please open a bug at
   http://rt.cpan.org/Public/Bug/Report.html?Queue=osgish if you
   encounter any problems.
+
+PLATFORM NOTES
+
+  * Glassfish
+
+    The easiest way to install bundles with glassfish is to copy the
+    bundles to $DOMAIN/autodeploy/bundles Autodeployment can be
+    switched on/off from the admin console ("Domain" : "Applications
+    Configuration" : "Auto Deploy").
+
+    Please ensure, that the Glassfish OSGi HTTP-Service is running. 
+
+    Copy the following jars into the $DOMAIN/autodeploy/bundles
+    directory: 
+
+    jolokia-osgi-1.0.2.jar           (www.jolokia.org)
+    org.apache.aries.jmx-0.3.jar     (aries.apache.org)
+    org.apache.aries.util-0.3.jar    (aries.apache.org)
+    osgish-core-0.3.0.jar            (from this distribution)
+
+    In order to connect to the server when it is running, use
+
+    osgish http://localhost:8080/osgi/jolokia
 
 RESOURCES
 
@@ -114,7 +155,7 @@ RESOURCES
 
 LICENSE
   
-  Copyright (C) 2009 Roland Huss (roland@cpan.org)
+  Copyright (C) 2009-2011 Roland Huss (roland@cpan.org)
 
   Osgish is free software: you can redistribute it and/or modify it
   under the terms of the GNU General Public License as published by

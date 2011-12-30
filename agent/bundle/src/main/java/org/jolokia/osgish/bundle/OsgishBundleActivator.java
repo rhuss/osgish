@@ -33,7 +33,7 @@ import org.osgi.framework.BundleContext;
 
 /**
  * Activator for activation the embedded j4p agent as well
- * as the Aries JMX bundle. So it's an aggregat activator.
+ * as the Aries JMX bundle. So it's an aggregated activator.
  *
  * It also registers an (arbitrary) MBeanServer if not already
  * an MBeanServer is registered. This service is required by Aries JMX.

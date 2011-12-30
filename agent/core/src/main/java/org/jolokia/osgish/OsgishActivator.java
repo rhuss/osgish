@@ -89,7 +89,6 @@ public class OsgishActivator implements BundleActivator {
     }
 
     public void stop(BundleContext pContext) throws Exception {
-        unregisterUploadServlet();
         unregisterMBeans();
         unregisterMBeanServer();
         closeLogTracker();
@@ -182,7 +181,6 @@ public class OsgishActivator implements BundleActivator {
             }
 
             public void removedService(ServiceReference reference, Object service) {
-                unregisterUploadServlet();
             }
         };
     }
@@ -192,19 +190,6 @@ public class OsgishActivator implements BundleActivator {
         httpServiceTracker = new ServiceTracker(pContext, HttpService.class.getName(),
                                                 getHttpServiceRegistrationCustomizer(pContext, pUploadServlet, pJolokiaContext));
         httpServiceTracker.open();
-    }
-
-    // Unregister an UploadServlet
-    private void unregisterUploadServlet() {
-        if (httpServiceTracker != null) {
-            for (Object s : httpServiceTracker.getServices()) {
-                HttpService httpService = (HttpService) s;
-                httpService.unregister(uploadServiceAlias);
-            }
-            httpServiceTracker.close();
-
-            httpServiceTracker = null;
-        }
     }
 
 

@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jolokia.osgish</groupId>
   <artifactId>osgish-parent</artifactId>
-  <version>0.2.0</version>
+  <version>0.3.0</version>
   <packaging>pom</packaging>
   <name>osgish-parent</name>
   <description>osgish - Parent</description>
@@ -16,7 +16,7 @@
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <jolokia.version>0.83</jolokia.version>
+    <jolokia.version>1.0.2-SNAPSHOT</jolokia.version>
   </properties>
 
   <dependencyManagement>
@@ -74,7 +74,7 @@
       <dependency>
         <groupId>commons-io</groupId>
         <artifactId>commons-io</artifactId>
-        <version>2.0.1</version>
+        <version>2.1</version>
       </dependency>
 
     </dependencies>
@@ -95,7 +95,7 @@
         <plugin>
           <groupId>org.apache.felix</groupId>
           <artifactId>maven-bundle-plugin</artifactId>
-          <version>2.1.0</version>
+          <version>2.3.6</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -110,16 +110,6 @@
       <snapshots>
         <enabled>true</enabled>
       </snapshots>
-    </repository>
-    <repository>
-      <id>consol-labs-release</id>
-      <url>http://labs.consol.de/maven/repository/</url>
-      <snapshots>
-        <enabled>false</enabled>
-      </snapshots>
-      <releases>
-        <enabled>true</enabled>
-      </releases>
     </repository>
     <repository>
       <id>consol-labs-snapshots</id>
@@ -146,7 +136,7 @@
         </repository>
         <snapshotRepository>
           <id>consol-labs-snapshots</id>
-        <url>scpexe://labs.consol.de/home/maven-repository/www/htdocs/snapshots-repository</url>
+          <url>scpexe://labs.consol.de/home/maven-repository/www/htdocs/snapshots-repository</url>
         </snapshotRepository>
       </distributionManagement>
     </profile>
