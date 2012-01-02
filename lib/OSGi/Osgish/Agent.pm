@@ -391,9 +391,10 @@ sub _fetch_services {
 sub _fetch_packages {
     my $self = shift;
     my $package = $self->_fetch_list("packageState","listPackages");
+    #print Dumper($package);
     $package->{import_export} = $self->_extract_import_export($package->{list});
     $self->{package} = $package;
-    #print Dumper($package);
+
 }
 
 sub exporting_bundles {
@@ -419,14 +420,19 @@ sub _extract_import_export {
     my $plist = shift;
     
     my $ret = {};
-    for my $v (values %{$plist}) {
-        die "Internal: No version found for ",$v->{Name},"\n" unless $v->{Version};
-        # We are using the chached bundle names here. Should be ok.
-        $ret->{$v->{Name}}->{$v->{Version}} = 
-            {              
-             importing => $self->_extract_unique_bundles($v->{ImportingBundles}),
-             exporting => $self->_extract_unique_bundles($v->{ExportingBundles})
-            };
+    #print Dumper($plist);
+    for my $e (values %{$plist}) {
+        for my $b (values %$e) {
+            for my $v (values %$b) {
+                die "Internal: No version found for ",$v->{Name},"\n" unless $v->{Version};
+                # We are using the chached bundle names here. Should be ok.
+                $ret->{$v->{Name}}->{$v->{Version}} = 
+                    {              
+                     importing => $self->_extract_unique_bundles($v->{ImportingBundles}),
+                     exporting => $self->_extract_unique_bundles($v->{ExportingBundles})
+                    };                
+            }            
+        }
     }
     return $ret;
 }

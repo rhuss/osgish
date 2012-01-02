@@ -86,6 +86,7 @@ Options:
   -i    Show wired imports (single bundle)
   -e    Show wired exports (single bundle)
   -s    Show symbolic name (single bundle)
+  -h    Show headers (single bundle)
   <bnd> Bundle id or symbolic name, conditionally 
         with wildcards ('*' and '?') 
 EOT
@@ -211,6 +212,7 @@ Show symbolic names instead of descriptive names
 
 =item -e 
 
+=item -h
 
 =back
 
@@ -233,6 +235,7 @@ sub cmd_list {
         
         my $filtered_bundles = $self->_filter_bundles($bundles,@filters);
         return unless @$filtered_bundles;
+
         if (@$filtered_bundles == 1) {
             # Print single info for bundle
             $self->print_bundle_info($filtered_bundles->[0],$opts);
@@ -414,6 +417,7 @@ sub print_bundle_info {
 
     $self->_dump_main_info(\$txt,$bu,$opts);
     $txt .= "\n";
+
 
     my $imports = $self->_extract_imports($bu->{ImportedPackages},$bu->{Headers},$opts->{i});
     $self->_dump_imports(\$txt,$imports,$opts);
@@ -597,7 +601,7 @@ sub _dump_main_info {
     my $osgish = $self->osgish;
     my $agent = $self->agent;
 
-    my $name = $bu->{Headers}->{'[Bundle-Name]'}->{Value};
+    my $name = $bu->{Headers}->{'Bundle-Name'}->{Value};
     my ($c_bid,$c_bname,$c_version,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_name","bundle_version","bundle_fragment",RESET);    
     my $sym = $bu->{SymbolicName} || $bu->{Location};
     my $version = $bu->{Version} ? $c_version . $bu->{Version} . $c_reset : "";

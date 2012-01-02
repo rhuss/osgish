@@ -8,4 +8,4 @@
 14 list content of a bundle (needs extra JMX support)
 15 extract part of a bundle (needs extra JMX support)
 16 download a bundle (needs extra JMX support)
-17 dynamic registration of bundles + plugin lookup
+17 dynamic registration of bundles + plugin lookupRERE

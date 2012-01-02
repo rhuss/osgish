@@ -1,3 +1,8 @@
+0.3.1 (2012-1-2)
+  * Fixed listing of export/import 
+  * Updated dependencies
+  * Updated README
+
 0.2.0
   * Updated to Aries 0.3
   * Splitted up OSGi bundles in a pure (core) bundle and an 

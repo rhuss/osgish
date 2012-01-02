@@ -100,7 +100,7 @@ INSTALLATION
   Considered you the HttpService is available at its default port
   8080, you can connect to it via
 
-  osgish --server http://localhost:8080/jolokia
+  osgish http://localhost:8080/jolokia
 
   (This assumes, that the HttpService has a root context '/' which is
   true for Pax Web. Glassfish v3's HttpService use a root context of

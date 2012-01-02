@@ -99,6 +99,7 @@
             </Embed-Dependency>
             <Import-Package>
               !javax.portlet,
+              javax.servlet.*;version=2.5,
               *
             </Import-Package>
           </instructions>
