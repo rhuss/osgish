@@ -55,3 +55,6 @@ agent/osgish-agent.iml
 \.tar.gz$
 limitations.txt
 ^MYMETA.yml$
+glassfish.*
+felix.*
+agent/\.idea.*
