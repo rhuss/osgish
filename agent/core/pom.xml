@@ -4,7 +4,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>org.jolokia.osgish</groupId>
   <artifactId>osgish-core</artifactId>
-  <version>0.3.0</version>
+  <version>0.3.1</version>
   <name>osgish-core</name>
   <packaging>bundle</packaging>
   <description>osgish-core - Osgish core</description>
@@ -12,7 +12,7 @@
   <parent>
     <groupId>org.jolokia.osgish</groupId>
     <artifactId>osgish-parent</artifactId>
-    <version>0.3.0</version>
+    <version>0.3.1</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
 

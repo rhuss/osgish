@@ -600,7 +600,7 @@ sub _dump_main_info {
     my $opts = shift;
     my $osgish = $self->osgish;
     my $agent = $self->agent;
-
+    #print Dumper($bu);
     my $name = $bu->{Headers}->{'Bundle-Name'}->{Value};
     my ($c_bid,$c_bname,$c_version,$c_fragment,$c_reset) = $osgish->color("bundle_id","bundle_name","bundle_version","bundle_fragment",RESET);    
     my $sym = $bu->{SymbolicName} || $bu->{Location};
